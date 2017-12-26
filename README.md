@@ -139,3 +139,12 @@ Fire up "streamer.exe" from C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\bi
 
 Osnap.  It works.  Fast.  My computer seems to handle 256MB/s pretty well.  Our target is 200MB/s, so I'd say we're doing pretty good.
 
+Their app is all C++'d up... So, I am looking through the code for it as well as this... https://github.com/Cornell-RPAL/occam/blob/master/indigosdk-2.0.15/third/cyusb/CyAPI.cpp
+
+Their code is called with ```USBDevice = new CCyUSBDevice((HANDLE)this->Handle,CYUSBDRV_GUID,true);```
+
+Yep... totally ripping it off... slowly.  Spent 2 hours so far... Now, I can at least get a handle to the device.  Still need to start sending it control messages to set up the isochronous endpoint.
+
+Maybe tomorrow?
+
+Then, who knows!  
