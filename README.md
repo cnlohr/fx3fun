@@ -83,3 +83,59 @@ New workspace in: /home/cnlohr/Cypress/test_workspace
 
 Ok, the GPIF button is greyed out.  This is lame.  Switch back to Windows.
 
+In Windows, get and install... http://www.cypress.com/file/139276 ... COMPLETE Installation.
+
+Run C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\Eclipse
+
+Make project at C:\projects\fx3fun\testproject
+
+Ok.  Seriously.  Why is the GPIF Designer button still grey.  I gotta figure out how to build a simple project.  I've been at this for almost an hour.
+
+Back to the getting started tab. http://www.cypress.com/file/139296/download
+
+Create a new project with the eclipse thing at C:\projects\fx3fun\testproject ... 
+
+File -> Import... "General" "Existing Projects" C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\firmware\gpif_examples\cyfxsrammaster + MAKE SURE TO click "copy project into workspace"
+
+Build release version.
+
+C:\projects\fx3fun\testproject\SRAMMaster\Release\SRAMMaster.img now exists.
+
+Run C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\bin\CyControl.exe
+
+Make sure J4 and J3 are on. Burn to ram the image file.
+
+Maybe that worked?
+
+Looks like it _probably_ did, however, I think I want a debugger so I can get printf messages.
+
+How do I do this debug thing.  Connecting to COM5 with 115,200 doesn't show anything, even on the debug firmware, though it seems to with the defualt firmware.
+
+I added a CyU3PDebugPrint command.  Works like a charm..
+
+```
+static void
+SRAMAppThread_Entry (
+        uint32_t input)
+{
+    /* Initialize the debug module */
+    CyFxSRAMApplnDebugInit ();
+    CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "Debug Test\n" );
+```
+
+I SEE IT!!!
+
+Ok.  We're cruising now.
+
+Got it.  The cyfxsrammaster project was cool... But, let's first see if we can actually talk to an app via USB 3.0.  Maybe some sort of speed test to make sure we can sustain the needed speeds?
+
+Delete that project.
+
+Try File->Import... General/Existing "C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\firmware\basic_examples\cyfxisosrc" I want an isochronous source! (Don't forget to check the copy workspace box.)
+
+Build and flash (in debug)
+
+Fire up "streamer.exe" from C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\bin
+
+Osnap.  It works.  Fast.  My computer seems to handle 256MB/s pretty well.  Our target is 200MB/s, so I'd say we're doing pretty good.
+
