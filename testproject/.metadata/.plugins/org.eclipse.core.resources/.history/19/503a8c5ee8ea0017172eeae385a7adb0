@@ -43,10 +43,6 @@
 #include "cyu3usb.h"
 #include "cyu3uart.h"
 #include "cyu3i2c.h"
-#include <cyu3gpif.h> //XXX CNL
-#include <cyu3pib.h>
-#include <pib_regs.h>
-#include <cyu3gpio.h>
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
 #include "fast_gpif2.h"
@@ -204,13 +200,11 @@ CyFxIsoSrcApplnStart (
 {
     uint16_t size = 0, index = 0;
     CyU3PEpConfig_t epCfg;
-    //CyU3PDmaBuffer_t buf_p;
+    CyU3PDmaBuffer_t buf_p;
     CyU3PDmaChannelConfig_t dmaCfg;
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
     CyU3PUSBSpeed_t usbSpeed = CyU3PUsbGetSpeed();
     uint8_t isoPkts = 1;
-
-    CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "Starting initiailization speed = %d\r\n", usbSpeed);
 
     /* First identify the usb speed. Once that is identified,
      * create a DMA channel and start the transfer on this. */
@@ -272,7 +266,6 @@ CyFxIsoSrcApplnStart (
 
     /* Multiply the buffer size with the burst value for performance improvement. */
 //    dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
-    dmaCfg.size           = DMA_IN_BUF_SIZE;
     dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
     dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET; // Was CY_U3P_CPU_SOCKET_PROD; XXX CNLohr
     dmaCfg.consSckId      = CY_FX_EP_CONSUMER_SOCKET;
@@ -300,9 +293,6 @@ CyFxIsoSrcApplnStart (
         CyFxAppErrorHandler(apiRetStatus);
     }
 
-#if 0
-    /* I don't think we want to do this in our case. */
-
     /* Now preload all buffers in the MANUAL_OUT pipe with the required data. */
     for (index = 0; index < CY_FX_ISOSRC_DMA_BUF_COUNT; index++)
     {
@@ -320,7 +310,6 @@ CyFxIsoSrcApplnStart (
             CyFxAppErrorHandler(apiRetStatus);
         }
     }
-#endif
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////Added by Charles
@@ -507,54 +496,6 @@ CyFxIsoSrcApplnLPMRqtCB (
     return CyTrue;
 }
 
-
-///XXX CNL Added for GPIF
-/* P-Port Event Callback. Used to identify error events thrown by the GPIF block.
- * We don't expect errors to happen, and only print a message in case one is reported.
- */
-static void
-PibEventCallback (
-        CyU3PPibIntrType cbType,
-        uint16_t         cbArg)
-{
-    if (cbType == CYU3P_PIB_INTR_ERROR)
-    {
-        switch (CYU3P_GET_PIB_ERROR_TYPE (cbArg))
-        {
-            case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-                //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR0_WR_OVERRUN\r\n");
-            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
-                break;
-            case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_WR_OVERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR2_WR_OVERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR2_WR_OVERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR3_WR_OVERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR3_WR_OVERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR0_RD_UNDERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR0_RD_UNDERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR1_RD_UNDERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_RD_UNDERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR2_RD_UNDERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR2_RD_UNDERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR3_RD_UNDERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR3_RD_UNDERRUN\r\n");
-                break;
-            default:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "PID Error :%d\r\n", CYU3P_GET_PIB_ERROR_TYPE (cbArg));
-                break;
-        }
-    }
-}
-
-
-
 /* This function initializes the USB Module, sets the enumeration descriptors.
  * This function does not start the ISO streaming and this is done only when
  * SET_CONF event is received. */
@@ -562,61 +503,6 @@ void
 CyFxIsoSrcApplnInit (void)
 {
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
-
-    //XXX CNL Setup GPIF
-
-    CyU3PPibClock_t         pibClock;
-    CyU3PGpioClock_t        gpioClock;
-    //CyU3PGpioSimpleConfig_t gpioConfig;
-    //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
-
-    /* Initialize the p-port block. We are running the PIB Block at 48 MHz. DLL needs to be enabled for Async
-     * operation of GPIF. */
-    pibClock.clkDiv      = 4;
-    pibClock.clkSrc      = CY_U3P_SYS_CLK;
-    pibClock.isHalfDiv   = CyFalse;
-    pibClock.isDllEnable = CyFalse;
-    apiRetStatus = CyU3PPibInit (CyTrue, &pibClock);
-    if (apiRetStatus != CY_U3P_SUCCESS)
-    {
-        CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "P-port Initialization failed, Error Code=%d\r\n", apiRetStatus);
-        CyFxAppErrorHandler (apiRetStatus);
-    }
-
-    /* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
-    apiRetStatus = CyU3PGpifLoad (&CyFxGpifConfig);
-    if (apiRetStatus != CY_U3P_SUCCESS)
-    {
-        CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpifLoad failed, Error Code=%d\r\n", apiRetStatus);
-        CyFxAppErrorHandler (apiRetStatus);
-    }
-
-    /* callback to see if there is any overflow of data on the GPIF II side*/
-    CyU3PPibRegisterCallback (PibEventCallback, 0xffff );
-
-
-    /* Initialize the GPIO module. This is used to update the indicator LED. */
-    gpioClock.fastClkDiv = 2;
-    gpioClock.slowClkDiv = 0;
-    gpioClock.simpleDiv  = CY_U3P_GPIO_SIMPLE_DIV_BY_2;
-    gpioClock.clkSrc     = CY_U3P_SYS_CLK;
-    gpioClock.halfDiv    = 0;
-
-    apiRetStatus = CyU3PGpioInit (&gpioClock, NULL);
-    if (apiRetStatus != 0)
-    {
-        /* Error Handling */
-        CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpioInit failed, error code = %d\r\n", apiRetStatus);
-        CyFxAppErrorHandler (apiRetStatus);
-    }
-
-
-
-
-
-
-
-    //Continue normal start
 
     /* Start the USB functionality. */
     apiRetStatus = CyU3PUsbStart();
@@ -895,18 +781,8 @@ main (void)
     CyU3PIoMatrixConfig_t io_cfg;
     CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
 
-    	///WAT? from https://community.cypress.com/thread/21688
-    CyU3PSysClockConfig_t clkCfg = {
-                            CyTrue,
-                            2, 2, 2,
-                            CyFalse,
-                            CY_U3P_SYS_CLK
-        };
-
-
-
     /* Initialize the device */
-    status = CyU3PDeviceInit (&clkCfg);
+    status = CyU3PDeviceInit (NULL);
     if (status != CY_U3P_SUCCESS)
     {
         goto handle_fatal_error;

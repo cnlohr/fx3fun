@@ -572,7 +572,7 @@ CyFxIsoSrcApplnInit (void)
 
     /* Initialize the p-port block. We are running the PIB Block at 48 MHz. DLL needs to be enabled for Async
      * operation of GPIF. */
-    pibClock.clkDiv      = 4;
+    pibClock.clkDiv      = 2;
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse;
     pibClock.isDllEnable = CyFalse;
@@ -583,7 +583,7 @@ CyFxIsoSrcApplnInit (void)
         CyFxAppErrorHandler (apiRetStatus);
     }
 
-    /* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
+    /* Load the GPIF configuration for SRAM async mode. This loads the state machine for interfacing with SRAM */
     apiRetStatus = CyU3PGpifLoad (&CyFxGpifConfig);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
@@ -906,7 +906,7 @@ main (void)
 
 
     /* Initialize the device */
-    status = CyU3PDeviceInit (&clkCfg);
+    status = CyU3PDeviceInit (clkCfg);
     if (status != CY_U3P_SUCCESS)
     {
         goto handle_fatal_error;

@@ -185,3 +185,6 @@ Now to figure out why the data's all wrong.  I was just being dumb.  Data went w
 
 Ok, got rid of a ton of stuff from Cypress.  Still more to get rid of.  But man this is curising along well.  About 1% or less CPU utilization at 256 MB/sec.
 
+MOVING OVER TO THE USB SIDE
+
+The GPIF designer is pretty easy to use.  Took a bit to get the hang of it, but I think I can make something with a data buffer, and one state that just does a ton of data in.

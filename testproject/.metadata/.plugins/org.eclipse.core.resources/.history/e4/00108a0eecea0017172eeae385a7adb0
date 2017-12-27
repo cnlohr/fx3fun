@@ -583,7 +583,7 @@ CyFxIsoSrcApplnInit (void)
         CyFxAppErrorHandler (apiRetStatus);
     }
 
-    /* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
+    /* Load the GPIF configuration for SRAM async mode. This loads the state machine for interfacing with SRAM */
     apiRetStatus = CyU3PGpifLoad (&CyFxGpifConfig);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {

@@ -44,9 +44,6 @@
 #include "cyu3uart.h"
 #include "cyu3i2c.h"
 #include <cyu3gpif.h> //XXX CNL
-#include <cyu3pib.h>
-#include <pib_regs.h>
-#include <cyu3gpio.h>
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
 #include "fast_gpif2.h"
@@ -204,7 +201,7 @@ CyFxIsoSrcApplnStart (
 {
     uint16_t size = 0, index = 0;
     CyU3PEpConfig_t epCfg;
-    //CyU3PDmaBuffer_t buf_p;
+    CyU3PDmaBuffer_t buf_p;
     CyU3PDmaChannelConfig_t dmaCfg;
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
     CyU3PUSBSpeed_t usbSpeed = CyU3PUsbGetSpeed();
@@ -522,8 +519,7 @@ PibEventCallback (
         switch (CYU3P_GET_PIB_ERROR_TYPE (cbArg))
         {
             case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-                //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR0_WR_OVERRUN\r\n");
-            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
+                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR0_WR_OVERRUN\r\n");
                 break;
             case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
                 CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_WR_OVERRUN\r\n");
@@ -567,15 +563,15 @@ CyFxIsoSrcApplnInit (void)
 
     CyU3PPibClock_t         pibClock;
     CyU3PGpioClock_t        gpioClock;
-    //CyU3PGpioSimpleConfig_t gpioConfig;
-    //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
+    CyU3PGpioSimpleConfig_t gpioConfig;
+    CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
     /* Initialize the p-port block. We are running the PIB Block at 48 MHz. DLL needs to be enabled for Async
      * operation of GPIF. */
-    pibClock.clkDiv      = 4;
+    pibClock.clkDiv      = 8;
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse;
-    pibClock.isDllEnable = CyFalse;
+    pibClock.isDllEnable = CyTrue;
     apiRetStatus = CyU3PPibInit (CyTrue, &pibClock);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
@@ -583,7 +579,7 @@ CyFxIsoSrcApplnInit (void)
         CyFxAppErrorHandler (apiRetStatus);
     }
 
-    /* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
+    /* Load the GPIF configuration for SRAM async mode. This loads the state machine for interfacing with SRAM */
     apiRetStatus = CyU3PGpifLoad (&CyFxGpifConfig);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
@@ -895,18 +891,8 @@ main (void)
     CyU3PIoMatrixConfig_t io_cfg;
     CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
 
-    	///WAT? from https://community.cypress.com/thread/21688
-    CyU3PSysClockConfig_t clkCfg = {
-                            CyTrue,
-                            2, 2, 2,
-                            CyFalse,
-                            CY_U3P_SYS_CLK
-        };
-
-
-
     /* Initialize the device */
-    status = CyU3PDeviceInit (&clkCfg);
+    status = CyU3PDeviceInit (NULL);
     if (status != CY_U3P_SUCCESS)
     {
         goto handle_fatal_error;
