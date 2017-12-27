@@ -173,6 +173,12 @@ Well, computer just did the Win10 equivelent of bluescreening and I lost one of 
 
 Gotta start git committing more frequently.
 
-AWW MAN YEAAAAAAAA.  Turns out was an uninitialized value.  P.S. Neat article.  Need to be careful about the overlapped structures.  https://blogs.msdn.microsoft.com/oldnewthing/20110202-00/?p=11613
+AWW MAN YEAAAAAAAA.  Turns out was an uninitialized value.  P.S. Neat article.  Need to be careful about the overlapped structures.  https://blogs.msdn.microsoft.com/oldnewthing/20110202-00/?p=11613 Thanks https://twitter.com/cnlohr/status/945907823560613888 @Mr_Red_Beard
 
 So, now, if you open the Cypress app and select the second option for the data flow, you get 256,000 kB/s via both apps.
+
+Seriously... how does SetAltIntfc work?  It does seem to set some configuration the device...  Found it. 	return CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, &alt, 1L);
+
+Works like a charm.
+
+Now to figure out why the data's all wrong.  I was just being dumb.  Data went where I wanted it.
