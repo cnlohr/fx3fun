@@ -172,3 +172,7 @@ Man, I'm glad I didn't give up and go another route right now.
 Well, computer just did the Win10 equivelent of bluescreening and I lost one of my source files.  Thankfully it only took ~15 mins to edit from the last git commit.
 
 Gotta start git committing more frequently.
+
+AWW MAN YEAAAAAAAA.  Turns out was an uninitialized value.  P.S. Neat article.  Need to be careful about the overlapped structures.  https://blogs.msdn.microsoft.com/oldnewthing/20110202-00/?p=11613
+
+So, now, if you open the Cypress app and select the second option for the data flow, you get 256,000 kB/s via both apps.

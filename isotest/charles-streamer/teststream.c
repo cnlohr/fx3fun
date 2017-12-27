@@ -13,7 +13,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	double Now = OGGetAbsoluteTime();
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f MB/s\n", bytes/1024/1024 );
+		printf( "Got %.3f KB/s\n", bytes/1024 );
 		Last++;
 		bytes = 0;
 	}
@@ -62,7 +62,7 @@ int main()
 		if( Last + 1 < Now )
 		{
 			Last++;
-			printf( "%.3f MB/s\n", bytes/1024.0/1024.0 );
+			printf( "%.3f KB/s\n", bytes/1024.0 );
 			bytes = 0;
 		}
 		#if 0
@@ -74,7 +74,9 @@ int main()
 	}
 	
 #else
-	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 32768, 2,  callback, 0 );
+		Last = OGGetAbsoluteTime();
+
+	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 131072*4, 4,  callback, 0 );
 
 
 #endif	

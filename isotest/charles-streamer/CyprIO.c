@@ -83,7 +83,7 @@ static BOOL Abort( struct CyprIOEndpoint * ep )
 //________
 
 
-static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen, OVERLAPPED *ov)
+static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen, OVERLAPPED *ov, uint8_t * xmitinplace )
 {
     if ( ep->parent->hDevice == INVALID_HANDLE_VALUE ) return NULL;
 
@@ -97,11 +97,14 @@ static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLe
 	}
 
     if (bufLen % ep->MaxPktSize) pkts++;
-
     if (pkts == 0) return NULL;
 
     int iXmitBufSize = sizeof (SINGLE_TRANSFER) + (pkts * sizeof(ISO_PACKET_INFO));
-    UCHAR * pXmitBuf = (UCHAR*) malloc(iXmitBufSize);
+    UCHAR * pXmitBuf;
+	if( xmitinplace )
+		pXmitBuf = xmitinplace;
+	else
+		pXmitBuf = (UCHAR*) malloc(iXmitBufSize);
     ZeroMemory (pXmitBuf, iXmitBufSize);
 
     PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
@@ -136,7 +139,7 @@ static PUCHAR BeginDataXfer(struct CyprIOEndpoint * ep, uint8_t * buf, LONG bufL
     if ( ep->parent->hDevice == INVALID_HANDLE_VALUE ) return NULL;
 
     if (ep->XferMode == XMODE_DIRECT)
-        return BeginDirectXfer( ep, buf, bufLen, ov);
+        return BeginDirectXfer( ep, buf, bufLen, ov, 0);
     else
 	{
 		DEBUGINFO( "Error: Buffered mode not yet supported!\n" );
@@ -245,18 +248,29 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	int i;
 	int TimeOut = 1000;
 	OVERLAPPED ovLapStatus[nrbuffers];
-	PUCHAR contexts[nrbuffers];
 	uint8_t * buffers[nrbuffers];
 	DWORD buflens[nrbuffers];
+	
+
+	int pkts;
+	pkts = buffersize / ep->MaxPktSize;       // Number of packets implied by buffersize & pktSize
+    if (buffersize % ep->MaxPktSize) pkts++;
+    int iXmitBufSize = sizeof (SINGLE_TRANSFER) + (pkts * sizeof(ISO_PACKET_INFO));
+	
+	uint8_t * xmitbuffers[nrbuffers];
+	PSINGLE_TRANSFER pTransfers[nrbuffers];
+	
 	for( i = 0; i < nrbuffers; i++ )
 	{
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
 		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
 		buffers[i] = (uint8_t*)malloc( buffersize );
-		contexts[i] = BeginDirectXfer( ep,
+		xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );
+		
+		pTransfers[i] = (PSINGLE_TRANSFER)BeginDirectXfer( ep,
 			buffers[i],
 			buffersize,
-			&ovLapStatus[i] );
+			&ovLapStatus[i], xmitbuffers[i] );
 	}
 	
 	int bid = 0;
@@ -264,7 +278,6 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	{
 		//int wResult = WaitForIO( ep, &ovLapStatus[bid], 1000 );
 		LPOVERLAPPED l = &ovLapStatus[bid];
-		printf( "Waiting on %p\n", l->hEvent );
         DWORD waitResult = WaitForSingleObject(l->hEvent,TimeOut);
 		if( waitResult != WAIT_OBJECT_0 )
 		{
@@ -272,11 +285,7 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 			DEBUGINFO( "Error: WaitForSingleObject returned %08x; LastError: %d\n", waitResult, GetLastError() );
 			break;
 		}
-		DEBUGINFO( "WaitForSingleObject returned %08x; LastError: %d\n", waitResult, GetLastError() );
-		//Yay! We got data.
-		
 		DWORD bytes = 0;
-		printf( "Passing GOL: %p, %p  %p, %d\n", ep->parent->hDevice, l, &buflens[bid], FALSE);
 		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, l, &buflens[bid], FALSE);
 		//Look at ovLapStatus[bid]
 		if( !rResult )
@@ -288,37 +297,25 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 		}
 		
 		//Note: Theoretically, you can read the data out with         UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset; I think.
-
-//		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
-//		*bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
-		//bytesWritten = bufLen;
-
-		//UsbdStatus = pTransfer->UsbdStatus;
-		//NtStatus   = pTransfer->NtStatus;
-
-/*		if (ep->bIn && (ep->XferMode == XMODE_BUFFERED) && (bufLen > 0)) {
-			UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
-			memcpy (buf, ptr, *bufLen);
-		}
-
-		// If a buffer was provided, pass-back the Isoc packet info records
-		if (pktInfos && (bufLen > 0)) {
-			ZeroMemory(pktInfos, pTransfer->IsoPacketLength);
-			PUCHAR pktPtr = pXmitBuf + pTransfer->IsoPacketOffset;
-			memcpy(pktInfos, pktPtr, pTransfer->IsoPacketLength);
-		}
-		*/
-
-		if( callback( id, ep, buffers[bid], buflens[bid] ) )
+		//PSINGLE_TRANSFER pTransfer = pTransfers[bid];
+		//UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
+		
+		if( callback( id, ep, buffers, buflens[bid] ) )
 			break;
 		
-		free( contexts[bid] );
-		contexts[bid] = BeginDirectXfer( ep,
+		BeginDirectXfer( ep,
 			buffers[bid],
 			buffersize,
-			&ovLapStatus[bid] );
-
-		printf( "GOT %d [%p]\n", buflens[bid], l->hEvent );
+			&ovLapStatus[bid], xmitbuffers[bid] );
+			/*
+		int ret = DeviceIoControl (ep->parent->hDevice,
+			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
+			pXmitBuf,
+			iXmitBufSize,
+			buf,
+			bufLen,
+			&dwReturnBytes,
+			l);*/
 
 		bid++;
 		if( bid == nrbuffers ) bid = 0;
@@ -328,7 +325,7 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	{
 		CloseHandle( ovLapStatus[i].hEvent );
 		free( buffers[i] );
-		free( contexts[i] );
+		free( xmitbuffers[i] );
 	}
 	return -1;
 }
