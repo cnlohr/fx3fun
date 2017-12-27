@@ -247,15 +247,15 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	OVERLAPPED ovLapStatus[nrbuffers];
 	PUCHAR contexts[nrbuffers];
 	uint8_t * buffers[nrbuffers];
-	LONG buflens[nrbuffers];
+	DWORD buflens[nrbuffers];
 	for( i = 0; i < nrbuffers; i++ )
 	{
-		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
+		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
 		buffers[i] = (uint8_t*)malloc( buffersize );
-		contexts[i] = BeginDataXfer( ep,
+		contexts[i] = BeginDirectXfer( ep,
 			buffers[i],
-			buflens[i],
+			buffersize,
 			&ovLapStatus[i] );
 	}
 	
@@ -263,26 +263,31 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	do
 	{
 		//int wResult = WaitForIO( ep, &ovLapStatus[bid], 1000 );
-        DWORD waitResult = WaitForSingleObject(ovLapStatus->hEvent,TimeOut);
+		LPOVERLAPPED l = &ovLapStatus[bid];
+		printf( "Waiting on %p\n", l->hEvent );
+        DWORD waitResult = WaitForSingleObject(l->hEvent,TimeOut);
 		if( waitResult != WAIT_OBJECT_0 )
 		{
 			//Bad things happened.  Abort!
-			DEBUGINFO( "Error: WaitForSingleObject returned %08x\n", waitResult );
+			DEBUGINFO( "Error: WaitForSingleObject returned %08x; LastError: %d\n", waitResult, GetLastError() );
+			break;
+		}
+		DEBUGINFO( "WaitForSingleObject returned %08x; LastError: %d\n", waitResult, GetLastError() );
+		//Yay! We got data.
+		
+		DWORD bytes = 0;
+		printf( "Passing GOL: %p, %p  %p, %d\n", ep->parent->hDevice, l, &buflens[bid], FALSE);
+		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, l, &buflens[bid], FALSE);
+		//Look at ovLapStatus[bid]
+		if( !rResult )
+		{
+			int le = GetLastError();
+			printf( "%d / %p / %p  %d BID:%d\n", l->Offset, l->hEvent, ep->parent->hDevice, rResult, bid );
+			DEBUGINFO( "Error: GetOverlappedResult returned with error %d\n", le);
 			break;
 		}
 		
-		//Yay! We got data.
-		DWORD bytes = 0;
-		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, &ovLapStatus[bid], &buflens[bid], FALSE);
-		OVERLAPPED * l = &ovLapStatus[bid];
-		printf( "%d / %p\n", l->Offset, l->Pointer );
-		//Look at ovLapStatus[bid]
-  
-		if( !rResult )
-		{
-			DEBUGINFO( "Error: GetOverlappedResult returned with error %d\n", GetLastError() );
-			break;
-		}
+		//Note: Theoretically, you can read the data out with         UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset; I think.
 
 //		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
 //		*bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
@@ -303,11 +308,20 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 			memcpy(pktInfos, pktPtr, pTransfer->IsoPacketLength);
 		}
 		*/
-		
+
 		if( callback( id, ep, buffers[bid], buflens[bid] ) )
 			break;
 		
+		free( contexts[bid] );
+		contexts[bid] = BeginDirectXfer( ep,
+			buffers[bid],
+			buffersize,
+			&ovLapStatus[bid] );
+
+		printf( "GOT %d [%p]\n", buflens[bid], l->hEvent );
+
 		bid++;
+		if( bid == nrbuffers ) bid = 0;
 	} while( 1 );
 	
 	for( i = 0; i < nrbuffers; i++ )

@@ -7,7 +7,7 @@
 double Last;
 double bytes;
 
-int Callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
+int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
 {
 	bytes += length;
 	double Now = OGGetAbsoluteTime();
@@ -74,9 +74,7 @@ int main()
 	}
 	
 #else
-	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 32768, 8,  callback, 0 );
-
-#else
+	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 32768, 2,  callback, 0 );
 
 
 #endif	
