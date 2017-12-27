@@ -4,6 +4,23 @@
 #include "CyprIO.h"
 #include "os_generic.h"
 
+double Last;
+double bytes;
+
+int Callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
+{
+	bytes += length;
+	double Now = OGGetAbsoluteTime();
+	if( Last + 1 < Now )
+	{
+		printf( "Got %.3f MB/s\n", bytes/1024/1024 );
+		Last++;
+		bytes = 0;
+	}
+	return 0;
+}
+
+
 int main()
 {
 	printf( "Test streamer\n" );
@@ -28,9 +45,9 @@ int main()
 	}
 	
 	printf( "Connected successfully\n" );
-
-	double Last = OGGetAbsoluteTime();
-	double bytes = 0;
+#if 0
+	Last = OGGetAbsoluteTime();
+	bytes = 0;
 	while(1)
 	{
 		uint8_t buf[32768];
@@ -56,6 +73,13 @@ int main()
 		#endif
 	}
 	
+#else
+	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 32768, 8,  callback, 0 );
+
+#else
+
+
+#endif	
 	
 	
 	return 0;

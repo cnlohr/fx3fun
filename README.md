@@ -158,3 +158,17 @@ I'll keep chugging away for a bit, I guess.
 Still going after about 6 hours.  Time to take a break.  Was mostly just converting over code to CyprIO.
 
 NEAT! The very first time after it compiled, it ran!  Committing.
+
+Only getting 12 MB/sec, though.  I think it's cause I'm creating and deleting all my transfers.
+
+TODO: Where are we doing the equivelent of                     if (USBDevice->SetAltIntfc(i) == true )?
+
+AH! Looking at Streamer.h they do their own custom function to get data that queues up a bunch of buffers.
+
+We shall do the same.
+
+Man, I'm glad I didn't give up and go another route right now.
+
+Well, computer just did the Win10 equivelent of bluescreening and I lost one of my source files.  Thankfully it only took ~15 mins to edit from the last git commit.
+
+Gotta start git committing more frequently.

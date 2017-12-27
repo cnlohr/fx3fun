@@ -84,6 +84,7 @@ struct CyprIO
 
 
 int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t * bufLen, struct CyprCyIsoPktInfo* pktInfos);
+int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 //Setup
 int CyprIOConnect( struct CyprIO * ths, int index, const char * matching );

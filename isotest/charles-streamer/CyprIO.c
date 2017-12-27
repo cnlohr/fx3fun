@@ -131,7 +131,7 @@ static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLe
     return pXmitBuf;
 }
 
-static PUCHAR BeginDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen, OVERLAPPED *ov)
+static PUCHAR BeginDataXfer(struct CyprIOEndpoint * ep, uint8_t * buf, LONG bufLen, OVERLAPPED *ov)
 {
     if ( ep->parent->hDevice == INVALID_HANDLE_VALUE ) return NULL;
 
@@ -146,7 +146,7 @@ static PUCHAR BeginDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen,
 }
 
 
-BOOL WaitForIO( struct CyprIOEndpoint * ep, OVERLAPPED *ovLapStatus, int TimeOut)
+static BOOL WaitForIO( struct CyprIOEndpoint * ep, OVERLAPPED *ovLapStatus, int TimeOut)
 {
     int LastError = GetLastError();
 
@@ -205,6 +205,23 @@ static int FinishDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG *bufLen, 
     return rResult;
 }
 
+#if 0
+int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t *bufLen, struct CyprCyIsoPktInfo* pktInfos)
+{
+    OVERLAPPED ovLapStatus;
+    memset(&ovLapStatus,0,sizeof(OVERLAPPED));
+
+    ovLapStatus.hEvent = CreateEvent(NULL, 0, 0, NULL);
+
+    PUCHAR context = BeginDataXfer( ep, buf, *bufLen, &ovLapStatus);
+    int   wResult = WaitForIO(ep, &ovLapStatus, 1000 );
+    int   fResult = FinishDataXfer(ep, buf, bufLen, &ovLapStatus, context, pktInfos);
+
+    CloseHandle(ovLapStatus.hEvent);
+
+    return wResult && fResult;
+}
+#endif
 
 int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t *bufLen, struct CyprCyIsoPktInfo* pktInfos)
 {
@@ -223,8 +240,84 @@ int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t *bufLen, s
 }
 
 
+int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
+{
+	int i;
+	int TimeOut = 1000;
+	OVERLAPPED ovLapStatus[nrbuffers];
+	PUCHAR contexts[nrbuffers];
+	uint8_t * buffers[nrbuffers];
+	LONG buflens[nrbuffers];
+	for( i = 0; i < nrbuffers; i++ )
+	{
+		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
+		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
+		buffers[i] = (uint8_t*)malloc( buffersize );
+		contexts[i] = BeginDataXfer( ep,
+			buffers[i],
+			buflens[i],
+			&ovLapStatus[i] );
+	}
+	
+	int bid = 0;
+	do
+	{
+		//int wResult = WaitForIO( ep, &ovLapStatus[bid], 1000 );
+        DWORD waitResult = WaitForSingleObject(ovLapStatus->hEvent,TimeOut);
+		if( waitResult != WAIT_OBJECT_0 )
+		{
+			//Bad things happened.  Abort!
+			DEBUGINFO( "Error: WaitForSingleObject returned %08x\n", waitResult );
+			break;
+		}
+		
+		//Yay! We got data.
+		DWORD bytes = 0;
+		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, &ovLapStatus[bid], &buflens[bid], FALSE);
+		OVERLAPPED * l = &ovLapStatus[bid];
+		printf( "%d / %p\n", l->Offset, l->Pointer );
+		//Look at ovLapStatus[bid]
+  
+		if( !rResult )
+		{
+			DEBUGINFO( "Error: GetOverlappedResult returned with error %d\n", GetLastError() );
+			break;
+		}
 
+//		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
+//		*bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
+		//bytesWritten = bufLen;
 
+		//UsbdStatus = pTransfer->UsbdStatus;
+		//NtStatus   = pTransfer->NtStatus;
+
+/*		if (ep->bIn && (ep->XferMode == XMODE_BUFFERED) && (bufLen > 0)) {
+			UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
+			memcpy (buf, ptr, *bufLen);
+		}
+
+		// If a buffer was provided, pass-back the Isoc packet info records
+		if (pktInfos && (bufLen > 0)) {
+			ZeroMemory(pktInfos, pTransfer->IsoPacketLength);
+			PUCHAR pktPtr = pXmitBuf + pTransfer->IsoPacketOffset;
+			memcpy(pktInfos, pktPtr, pTransfer->IsoPacketLength);
+		}
+		*/
+		
+		if( callback( id, ep, buffers[bid], buflens[bid] ) )
+			break;
+		
+		bid++;
+	} while( 1 );
+	
+	for( i = 0; i < nrbuffers; i++ )
+	{
+		CloseHandle( ovLapStatus[i].hEvent );
+		free( buffers[i] );
+		free( contexts[i] );
+	}
+	return -1;
+}
 
 
 
