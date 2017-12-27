@@ -53,196 +53,6 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 
 
 
-static BOOL Abort( struct CyprIOEndpoint * ep )
-{   
-	DWORD dwBytes = 0;
-	BOOL  RetVal = FALSE;
-	OVERLAPPED ov;
-
-	memset(&ov,0,sizeof(ov));
-	ov.hEvent = CreateEvent(NULL,0,0,NULL);
-	
-	RetVal  = (DeviceIoControl(ep->parent->hDevice,
-		IOCTL_ADAPT_ABORT_PIPE,
-		&ep->Address,
-		sizeof(UCHAR),
-		NULL,
-		0,
-		&dwBytes,
-		&ov)!=0);
-	if(!RetVal)
-	{
-		DWORD LastError = GetLastError();
-		if(LastError == ERROR_IO_PENDING)
-			WaitForSingleObject(ov.hEvent,INFINITE);
-	}
-	CloseHandle(ov.hEvent);
-	return 1;
-
-}
-//________
-
-
-static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen, OVERLAPPED *ov, uint8_t * xmitinplace )
-{
-    if ( ep->parent->hDevice == INVALID_HANDLE_VALUE ) return NULL;
-
-	int pkts;
-	if(ep->MaxPktSize)
-		pkts = bufLen / ep->MaxPktSize;       // Number of packets implied by bufLen & pktSize
-	else
-	{
-		pkts = 0;
-		return NULL;
-	}
-
-    if (bufLen % ep->MaxPktSize) pkts++;
-    if (pkts == 0) return NULL;
-
-    int iXmitBufSize = sizeof (SINGLE_TRANSFER) + (pkts * sizeof(ISO_PACKET_INFO));
-    UCHAR * pXmitBuf;
-	if( xmitinplace )
-		pXmitBuf = xmitinplace;
-	else
-		pXmitBuf = (UCHAR*) malloc(iXmitBufSize);
-    ZeroMemory (pXmitBuf, iXmitBufSize);
-
-    PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
-    pTransfer->ucEndpointAddress = ep->Address;
-    pTransfer->IsoPacketOffset = sizeof (SINGLE_TRANSFER);
-    pTransfer->IsoPacketLength = pkts * sizeof(ISO_PACKET_INFO);
-    pTransfer->BufferOffset = 0;
-    pTransfer->BufferLength = 0;
-
-    DWORD dwReturnBytes = 0;
-
-
-    int ret = DeviceIoControl (ep->parent->hDevice,
-        IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
-        pXmitBuf,
-        iXmitBufSize,
-        buf,
-        bufLen,
-        &dwReturnBytes,
-        ov);
-
-    // Note that this method leaves pXmitBuf allocated.  It will get deleted in
-    // FinishDataXfer.
-
-    int LastError = GetLastError();
-	
-    return pXmitBuf;
-}
-
-static PUCHAR BeginDataXfer(struct CyprIOEndpoint * ep, uint8_t * buf, LONG bufLen, OVERLAPPED *ov)
-{
-    if ( ep->parent->hDevice == INVALID_HANDLE_VALUE ) return NULL;
-
-    if (ep->XferMode == XMODE_DIRECT)
-        return BeginDirectXfer( ep, buf, bufLen, ov, 0);
-    else
-	{
-		DEBUGINFO( "Error: Buffered mode not yet supported!\n" );
-		return 0;
-		//return BeginBufferedXfer(buf, bufLen, ov);
-	}
-}
-
-
-static BOOL WaitForIO( struct CyprIOEndpoint * ep, OVERLAPPED *ovLapStatus, int TimeOut)
-{
-    int LastError = GetLastError();
-
-    if (LastError == ERROR_SUCCESS) return 1;  // The command completed
-
-    if (LastError == ERROR_IO_PENDING) {
-        DWORD waitResult = WaitForSingleObject(ovLapStatus->hEvent,TimeOut);
-
-        if (waitResult == WAIT_OBJECT_0) return 1;  
-
-        if (waitResult == WAIT_TIMEOUT) 
-		{			
-			Abort( ep );
-			//// Wait for the stalled command to complete - should be done already
-			DWORD  retcode = WaitForSingleObject(ovLapStatus->hEvent,50); // Wait for 50 milisecond
-	
-			if(retcode == WAIT_TIMEOUT || retcode==WAIT_FAILED) 
-			{// Worst case condition , in multithreaded environment if user set time out to ZERO and cancel the IO the requiest, rarely first Abort() fail to cancel the IO, so reissueing second Abort(0.				
-				Abort( ep ); 
-				retcode = WaitForSingleObject(ovLapStatus->hEvent,INFINITE); 
-				
-			}
-        }
-    }
-
-    return 0;
-}
-
-
-static int FinishDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG *bufLen, OVERLAPPED *ov, PUCHAR pXmitBuf, struct CyprCyIsoPktInfo* pktInfos)
-{
-    DWORD bytes = 0;
-    BOOL rResult = (GetOverlappedResult(ep->parent->hDevice, ov, &bytes, FALSE)!=0);
-
-    PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
-    *bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
-    //bytesWritten = bufLen;
-
-    //UsbdStatus = pTransfer->UsbdStatus;
-    //NtStatus   = pTransfer->NtStatus;
-
-    if (ep->bIn && (ep->XferMode == XMODE_BUFFERED) && (bufLen > 0)) {
-        UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
-        memcpy (buf, ptr, *bufLen);
-    }
-
-    // If a buffer was provided, pass-back the Isoc packet info records
-    if (pktInfos && (bufLen > 0)) {
-        ZeroMemory(pktInfos, pTransfer->IsoPacketLength);
-        PUCHAR pktPtr = pXmitBuf + pTransfer->IsoPacketOffset;
-        memcpy(pktInfos, pktPtr, pTransfer->IsoPacketLength);
-    }
-
-    free( pXmitBuf );     // [] Changed in 1.5.1.3
-
-    return rResult;
-}
-
-#if 0
-int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t *bufLen, struct CyprCyIsoPktInfo* pktInfos)
-{
-    OVERLAPPED ovLapStatus;
-    memset(&ovLapStatus,0,sizeof(OVERLAPPED));
-
-    ovLapStatus.hEvent = CreateEvent(NULL, 0, 0, NULL);
-
-    PUCHAR context = BeginDataXfer( ep, buf, *bufLen, &ovLapStatus);
-    int   wResult = WaitForIO(ep, &ovLapStatus, 1000 );
-    int   fResult = FinishDataXfer(ep, buf, bufLen, &ovLapStatus, context, pktInfos);
-
-    CloseHandle(ovLapStatus.hEvent);
-
-    return wResult && fResult;
-}
-#endif
-
-int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t *bufLen, struct CyprCyIsoPktInfo* pktInfos)
-{
-    OVERLAPPED ovLapStatus;
-    memset(&ovLapStatus,0,sizeof(OVERLAPPED));
-
-    ovLapStatus.hEvent = CreateEvent(NULL, 0, 0, NULL);
-
-    PUCHAR context = BeginDataXfer( ep, buf, *bufLen, &ovLapStatus);
-    int   wResult = WaitForIO(ep, &ovLapStatus, 1000 );
-    int   fResult = FinishDataXfer(ep, buf, bufLen, &ovLapStatus, context, pktInfos);
-
-    CloseHandle(ovLapStatus.hEvent);
-
-    return wResult && fResult;
-}
-
-
 int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
 {
 	int i;
@@ -250,7 +60,7 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 	OVERLAPPED ovLapStatus[nrbuffers];
 	uint8_t * buffers[nrbuffers];
 	DWORD buflens[nrbuffers];
-	
+	DWORD dwReturnBytes = 0;
 
 	int pkts;
 	pkts = buffersize / ep->MaxPktSize;       // Number of packets implied by buffersize & pktSize
@@ -265,19 +75,34 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
 		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
 		buffers[i] = (uint8_t*)malloc( buffersize );
-		xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );
-		
-		pTransfers[i] = (PSINGLE_TRANSFER)BeginDirectXfer( ep,
-			buffers[i],
-			buffersize,
-			&ovLapStatus[i], xmitbuffers[i] );
+		UCHAR * pXmitBuf = xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );		
+		pTransfers[i] = (PSINGLE_TRANSFER)pXmitBuf;
+		ZeroMemory (pXmitBuf, iXmitBufSize);
+		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
+		pTransfer->ucEndpointAddress = ep->Address;
+		pTransfer->IsoPacketOffset = sizeof (SINGLE_TRANSFER);
+		pTransfer->IsoPacketLength = pkts * sizeof(ISO_PACKET_INFO);
+		pTransfer->BufferOffset = 0;
+		pTransfer->BufferLength = 0;
 	}
 	
-	int bid = 0;
+	for( i = 0; i < nrbuffers; i++ )
+	{
+		//Actually deploy all our requests.
+		DeviceIoControl (ep->parent->hDevice,
+			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
+			xmitbuffers[i],
+			iXmitBufSize,
+			buffers[i], buffersize,
+			&dwReturnBytes,
+			&ovLapStatus[i]);
+	}
+	
+	i = 0;
 	do
 	{
-		//int wResult = WaitForIO( ep, &ovLapStatus[bid], 1000 );
-		LPOVERLAPPED l = &ovLapStatus[bid];
+		//int wResult = WaitForIO( ep, &ovLapStatus[i], 1000 );
+		LPOVERLAPPED l = &ovLapStatus[i];
         DWORD waitResult = WaitForSingleObject(l->hEvent,TimeOut);
 		if( waitResult != WAIT_OBJECT_0 )
 		{
@@ -286,39 +111,35 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 			break;
 		}
 		DWORD bytes = 0;
-		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, l, &buflens[bid], FALSE);
-		//Look at ovLapStatus[bid]
+		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, l, &bytes, FALSE);
+		//Look at ovLapStatus[i]
 		if( !rResult )
 		{
 			int le = GetLastError();
-			printf( "%d / %p / %p  %d BID:%d\n", l->Offset, l->hEvent, ep->parent->hDevice, rResult, bid );
+			printf( "%d / %p / %p  %d BID:%d\n", l->Offset, l->hEvent, ep->parent->hDevice, rResult, i );
 			DEBUGINFO( "Error: GetOverlappedResult returned with error %d\n", le);
 			break;
 		}
 		
-		//Note: Theoretically, you can read the data out with         UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset; I think.
-		//PSINGLE_TRANSFER pTransfer = pTransfers[bid];
-		//UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
-		
-		if( callback( id, ep, buffers[bid], buflens[bid] ) )
-			break;
-		
-		BeginDirectXfer( ep,
-			buffers[bid],
-			buffersize,
-			&ovLapStatus[bid], xmitbuffers[bid] );
-			/*
-		int ret = DeviceIoControl (ep->parent->hDevice,
-			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
-			pXmitBuf,
-			iXmitBufSize,
-			buf,
-			bufLen,
-			&dwReturnBytes,
-			l);*/
+		//Got the data.  call our callback.
+		if( bytes )
+		{
+			if( callback( id, ep, buffers[i], bytes ) )
+				break;
+		}
 
-		bid++;
-		if( bid == nrbuffers ) bid = 0;
+		//Hook that packet back up to our chain.
+		DeviceIoControl (ep->parent->hDevice,
+			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
+			xmitbuffers[i],
+			iXmitBufSize,
+			buffers[i], buffersize,
+			&dwReturnBytes,
+			l);
+
+			
+		i++;
+		if( i == nrbuffers ) i = 0;
 	} while( 1 );
 	
 	for( i = 0; i < nrbuffers; i++ )

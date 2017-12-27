@@ -182,3 +182,6 @@ Seriously... how does SetAltIntfc work?  It does seem to set some configuration 
 Works like a charm.
 
 Now to figure out why the data's all wrong.  I was just being dumb.  Data went where I wanted it.
+
+Ok, got rid of a ton of stuff from Cypress.  Still more to get rid of.  But man this is curising along well.  About 1% or less CPU utilization at 256 MB/sec.
+
