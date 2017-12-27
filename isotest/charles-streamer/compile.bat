@@ -1,7 +1,9 @@
 set TCC=C:\tcc\tcc.exe
-set CFLAGS=-DTCC -DWINDOWS -DHIDAPI -DWIN32 -Os
+set CFLAGS=-DTCC -DWINDOWS -DHIDAPI -DWIN32 -Os -I.
 set LDFLAGS=-s  -lkernel32 -lgdi32 -luser32 -lsetupapi -ldbghelp
 
 rem Stole LDFLAGS/CFLAGS from libsurvive.
 
-%TCC% -o teststream.exe teststream.c %CFLAGS% %LDFLAGS%
+del teststream.exe
+%TCC% -o teststream.exe teststream.c CyprIO.c %CFLAGS% %LDFLAGS%
+teststream.exe

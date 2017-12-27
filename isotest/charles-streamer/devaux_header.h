@@ -107,6 +107,14 @@
 
 
 
+	typedef struct _USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR
+	{
+		UCHAR bLength;
+		UCHAR bDescriptorType;
+		UCHAR bMaxBurst;
+		UCHAR bmAttributes;        
+		USHORT bBytesPerInterval;
+	}USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR,*PUSB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR;
 
 
 	
@@ -120,6 +128,12 @@
 	#define DEVICE_SPEED_LOW_FULL       0x00000001
 	#define DEVICE_SPEED_HIGH           0x00000002
 	#define DEVICE_SPEED_SUPER	0x00000004
+
+
+	typedef struct _ISO_PACKET_INFO {
+		ULONG Status;
+		ULONG Length;
+	} ISO_PACKET_INFO, *PISO_PACKET_INFO;
 
 	typedef struct _WORD_SPLIT {
 		UCHAR lowByte;

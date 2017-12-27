@@ -148,3 +148,11 @@ Yep... totally ripping it off... slowly.  Spent 2 hours so far... Now, I can at 
 Maybe tomorrow?
 
 Then, who knows!  
+
+12/26/2017:
+
+Spent another hour working away with my teststream.c thing... Then started to wonder if libUSB could be leveraged...  Tempting...
+
+I'll keep chugging away for a bit, I guess.
+
+Still going after about 6 hours.  Time to take a break.  Was mostly just converting over code to CyprIO.
