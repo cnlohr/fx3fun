@@ -156,3 +156,5 @@ Spent another hour working away with my teststream.c thing... Then started to wo
 I'll keep chugging away for a bit, I guess.
 
 Still going after about 6 hours.  Time to take a break.  Was mostly just converting over code to CyprIO.
+
+NEAT! The very first time after it compiled, it ran!  Committing.

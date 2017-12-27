@@ -53,6 +53,34 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 
 
 
+static BOOL Abort( struct CyprIOEndpoint * ep )
+{   
+	DWORD dwBytes = 0;
+	BOOL  RetVal = FALSE;
+	OVERLAPPED ov;
+
+	memset(&ov,0,sizeof(ov));
+	ov.hEvent = CreateEvent(NULL,0,0,NULL);
+	
+	RetVal  = (DeviceIoControl(ep->parent->hDevice,
+		IOCTL_ADAPT_ABORT_PIPE,
+		&ep->Address,
+		sizeof(UCHAR),
+		NULL,
+		0,
+		&dwBytes,
+		&ov)!=0);
+	if(!RetVal)
+	{
+		DWORD LastError = GetLastError();
+		if(LastError == ERROR_IO_PENDING)
+			WaitForSingleObject(ov.hEvent,INFINITE);
+	}
+	CloseHandle(ov.hEvent);
+	return 1;
+
+}
+//________
 
 
 static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLen, OVERLAPPED *ov)
@@ -100,8 +128,6 @@ static PUCHAR BeginDirectXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG bufLe
 
     int LastError = GetLastError();
 	
-	
-	printf( "XFER: %d %d\n", ret, LastError );
     return pXmitBuf;
 }
 
@@ -133,13 +159,13 @@ BOOL WaitForIO( struct CyprIOEndpoint * ep, OVERLAPPED *ovLapStatus, int TimeOut
 
         if (waitResult == WAIT_TIMEOUT) 
 		{			
-			Abort();
+			Abort( ep );
 			//// Wait for the stalled command to complete - should be done already
 			DWORD  retcode = WaitForSingleObject(ovLapStatus->hEvent,50); // Wait for 50 milisecond
 	
 			if(retcode == WAIT_TIMEOUT || retcode==WAIT_FAILED) 
 			{// Worst case condition , in multithreaded environment if user set time out to ZERO and cancel the IO the requiest, rarely first Abort() fail to cancel the IO, so reissueing second Abort(0.				
-				Abort(); 
+				Abort( ep ); 
 				retcode = WaitForSingleObject(ovLapStatus->hEvent,INFINITE); 
 				
 			}
@@ -150,21 +176,21 @@ BOOL WaitForIO( struct CyprIOEndpoint * ep, OVERLAPPED *ovLapStatus, int TimeOut
 }
 
 
-static int FinishDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG *bufLen, OVERLAPPED *ov, PUCHAR pXmitBuf, CCyIsoPktInfo* pktInfos)
+static int FinishDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG *bufLen, OVERLAPPED *ov, PUCHAR pXmitBuf, struct CyprCyIsoPktInfo* pktInfos)
 {
     DWORD bytes = 0;
-    bool rResult = (GetOverlappedResult(hDevice, ov, &bytes, FALSE)!=0);
+    BOOL rResult = (GetOverlappedResult(ep->parent->hDevice, ov, &bytes, FALSE)!=0);
 
     PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
-    bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
-    bytesWritten = bufLen;
+    *bufLen = (bytes) ? bytes - pTransfer->BufferOffset : 0;
+    //bytesWritten = bufLen;
 
-    UsbdStatus = pTransfer->UsbdStatus;
-    NtStatus   = pTransfer->NtStatus;
+    //UsbdStatus = pTransfer->UsbdStatus;
+    //NtStatus   = pTransfer->NtStatus;
 
-    if (bIn && (XferMode == XMODE_BUFFERED) && (bufLen > 0)) {
+    if (ep->bIn && (ep->XferMode == XMODE_BUFFERED) && (bufLen > 0)) {
         UCHAR *ptr = (PUCHAR)pTransfer + pTransfer->BufferOffset;
-        memcpy (buf, ptr, bufLen);
+        memcpy (buf, ptr, *bufLen);
     }
 
     // If a buffer was provided, pass-back the Isoc packet info records
@@ -176,7 +202,7 @@ static int FinishDataXfer(struct CyprIOEndpoint * ep, PUCHAR buf, LONG *bufLen, 
 
     free( pXmitBuf );     // [] Changed in 1.5.1.3
 
-    return rResult && (UsbdStatus == 0) && (NtStatus == 0);
+    return rResult;
 }
 
 
