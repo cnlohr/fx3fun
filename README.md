@@ -188,3 +188,9 @@ Ok, got rid of a ton of stuff from Cypress.  Still more to get rid of.  But man 
 MOVING OVER TO THE USB SIDE
 
 The GPIF designer is pretty easy to use.  Took a bit to get the hang of it, but I think I can make something with a data buffer, and one state that just does a ton of data in.
+
+12/27/2017:
+
+Spend 20 minutes dinking more... I think it's time to ask for help and go do regular work.
+
+https://community.cypress.com/message/148992#148992

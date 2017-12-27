@@ -271,8 +271,8 @@ CyFxIsoSrcApplnStart (
     }
 
     /* Multiply the buffer size with the burst value for performance improvement. */
-//    dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
-    dmaCfg.size           = DMA_IN_BUF_SIZE;
+    dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
+    //dmaCfg.size           = DMA_IN_BUF_SIZE;
     dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
     dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET; // Was CY_U3P_CPU_SOCKET_PROD; XXX CNLohr
     dmaCfg.consSckId      = CY_FX_EP_CONSUMER_SOCKET;
@@ -895,17 +895,13 @@ main (void)
     CyU3PIoMatrixConfig_t io_cfg;
     CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
 
-    	///WAT? from https://community.cypress.com/thread/21688
+    ///Confusing but seems to set it up so the SYS_CLK can be 400 MHz. from https://community.cypress.com/thread/21688
     CyU3PSysClockConfig_t clkCfg = {
                             CyTrue,
                             2, 2, 2,
                             CyFalse,
                             CY_U3P_SYS_CLK
         };
-
-
-
-    /* Initialize the device */
     status = CyU3PDeviceInit (&clkCfg);
     if (status != CY_U3P_SUCCESS)
     {
