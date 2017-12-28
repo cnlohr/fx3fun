@@ -2,8 +2,8 @@
 <Root version="4">
   <CyStates>
     <CyNormalState>
-      <Left>440</Left>
-      <Top>107.41</Top>
+      <Left>704</Left>
+      <Top>213.41</Top>
       <Width>83</Width>
       <Height>70</Height>
       <Name>STATE8</Name>
@@ -12,13 +12,57 @@
       <IsGroup>False</IsGroup>
       <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
     </CyNormalState>
+    <CyNormalState>
+      <Left>402</Left>
+      <Top>213.41</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STATE0</Name>
+      <DisplayName>STATE0</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyNormalState>
+    <CyNormalState>
+      <Left>549</Left>
+      <Top>212.41</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STATE1</Name>
+      <DisplayName>STATE1</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyNormalState>
     <CyStartState>
-      <Left>146</Left>
-      <Top>105.446666666667</Top>
+      <Left>404</Left>
+      <Top>93.446666666667</Top>
       <Width>83</Width>
       <Height>70</Height>
       <Name>STARTSTATE0</Name>
-      <DisplayName>START</DisplayName>
+      <DisplayName>STARTNULL</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyStartState>
+    <CyStartState>
+      <Left>706</Left>
+      <Top>100.41</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STARTSTATE1</Name>
+      <DisplayName>STARTRX</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyStartState>
+    <CyStartState>
+      <Left>552</Left>
+      <Top>98.4099999999999</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STARTSTATE2</Name>
+      <DisplayName>STARTTX</DisplayName>
       <zIndex>1</zIndex>
       <IsGroup>False</IsGroup>
       <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
@@ -28,9 +72,31 @@
     <CyTransition>
       <Name>TRANSITION2</Name>
       <TransitionEquation>LOGIC_ONE</TransitionEquation>
-      <SourceName>STARTSTATE0</SourceName>
+      <SourceName>STARTSTATE2</SourceName>
+      <SinkName>STATE1</SinkName>
+      <SourceConnectorName>Connector2</SourceConnectorName>
+      <SinkConnectorName>Connector</SinkConnectorName>
+      <SourceArrowSymbol>None</SourceArrowSymbol>
+      <SinkArrowSymbol>Arrow</SinkArrowSymbol>
+      <zIndex>0</zIndex>
+    </CyTransition>
+    <CyTransition>
+      <Name>TRANSITION1</Name>
+      <TransitionEquation>LOGIC_ONE</TransitionEquation>
+      <SourceName>STARTSTATE1</SourceName>
       <SinkName>STATE8</SinkName>
-      <SourceConnectorName>Connector4</SourceConnectorName>
+      <SourceConnectorName>Connector2</SourceConnectorName>
+      <SinkConnectorName>Connector</SinkConnectorName>
+      <SourceArrowSymbol>None</SourceArrowSymbol>
+      <SinkArrowSymbol>Arrow</SinkArrowSymbol>
+      <zIndex>0</zIndex>
+    </CyTransition>
+    <CyTransition>
+      <Name>TRANSITION0</Name>
+      <TransitionEquation>LOGIC_ONE</TransitionEquation>
+      <SourceName>STARTSTATE0</SourceName>
+      <SinkName>STATE0</SinkName>
+      <SourceConnectorName>Connector2</SourceConnectorName>
       <SinkConnectorName>Connector</SinkConnectorName>
       <SourceArrowSymbol>None</SourceArrowSymbol>
       <SinkArrowSymbol>Arrow</SinkArrowSymbol>

@@ -49,11 +49,14 @@
 #include <cyu3gpio.h>
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
-#include "fast_gpif2.h"
+//#include "fast_gpif2.h"
 //#include "cyfxgpif2config.h"
 
 CyU3PThread     isoSrcAppThread;	/* ISO loop application thread structure */
 CyU3PDmaChannel glChHandleIsoSrc;       /* DMA MANUAL_OUT channel handle */
+
+
+uint32_t DataOverrunErrors = 0;
 
 CyBool_t glIsApplnActive = CyFalse;     /* Whether the loopback application is active or not. */
 uint32_t glDMARxCount = 0;              /* Counter to track the number of buffers received. */
@@ -168,6 +171,8 @@ CyFxIsoSrcDmaCallback (
 
     if (type == CY_U3P_DMA_CB_CONS_EVENT)
     {
+    	//XXX XXX XXX THIS CODE SHOULD NOT BE EXECUTED ANYMORE!!!! SHOULD BE ABLE TO REMOVE.
+
         /* This is a consume event notification to the CPU. This notification is 
          * received when a buffer is sent out from the device. We have to commit
          * a new buffer as soon as a buffer is available to implement the data
@@ -191,6 +196,7 @@ CyFxIsoSrcDmaCallback (
         /* Increment the counter. */
         glDMATxCount++;
 
+        CyU3PDebugPrint (4, "DMA!!!\r\n" );
         CyU3PUsbLPMDisable ();
     }
 }
@@ -210,7 +216,7 @@ CyFxIsoSrcApplnStart (
     CyU3PUSBSpeed_t usbSpeed = CyU3PUsbGetSpeed();
     uint8_t isoPkts = 1;
 
-    CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "Starting initiailization speed = %d\r\n", usbSpeed);
+    CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "Starting initialization speed = %d\r\n", usbSpeed);
 
     /* First identify the usb speed. Once that is identified,
      * create a DMA channel and start the transfer on this. */
@@ -254,7 +260,7 @@ CyFxIsoSrcApplnStart (
     apiRetStatus = CyU3PSetEpConfig(CY_FX_EP_CONSUMER, &epCfg);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
-        CyU3PDebugPrint (4, "CyU3PSetEpConfig failed, Error code = %d\n", apiRetStatus);
+        CyU3PDebugPrint (4, "CyU3PSetEpConfig failed, Error code = %d\r\n", apiRetStatus);
         CyFxAppErrorHandler (apiRetStatus);
     }
 
@@ -283,6 +289,8 @@ CyFxIsoSrcApplnStart (
     dmaCfg.prodFooter     = 0;
     dmaCfg.consHeader     = 0;
     dmaCfg.prodAvailCount = 0;
+
+    CyU3PDebugPrint (4, "DMA Config Size = %d\r\n", dmaCfg.size);
 
     //apiRetStatus = CyU3PDmaChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_MANUAL_OUT, &dmaCfg); XXX CNL
     apiRetStatus = CyU3PDmaChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_AUTO, &dmaCfg);
@@ -338,8 +346,9 @@ CyFxIsoSrcApplnStart (
     }
 */
 
-    /* Start the GPIF state machine which will read and write data to/from SRAM whenever requested */
-    apiRetStatus = CyU3PGpifSMStart (START, ALPHA_START);
+    /* Start the GPIF state machine */
+    //apiRetStatus = CyU3PGpifSMStart (STARTNULL, ALPHA_STARTNULL);
+    apiRetStatus = CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
         CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpifSMStart Failed, Error code = %d\r\n", apiRetStatus);
@@ -364,6 +373,12 @@ CyFxIsoSrcApplnStop (
 {
     CyU3PEpConfig_t epCfg;
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
+
+    CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "De-initializing...\r\n");
+
+    //Stop the GPIF bus.
+    CyU3PGpifDisable( 0 );
+
 
     /* Update the flag so that the application thread is notified of this. */
     glIsApplnActive = CyFalse;
@@ -522,8 +537,8 @@ PibEventCallback (
         switch (CYU3P_GET_PIB_ERROR_TYPE (cbArg))
         {
             case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-                //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR0_WR_OVERRUN\r\n");
-            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
+                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "O");
+            	DataOverrunErrors++;            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
                 break;
             case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
                 CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_WR_OVERRUN\r\n");
@@ -547,7 +562,7 @@ PibEventCallback (
                 CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR3_RD_UNDERRUN\r\n");
                 break;
             default:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "PID Error :%d\r\n", CYU3P_GET_PIB_ERROR_TYPE (cbArg));
+                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "PID Error:%d(%d)\r\n", CYU3P_GET_PIB_ERROR_TYPE (cbArg),cbArg);
                 break;
         }
     }
@@ -592,7 +607,7 @@ CyFxIsoSrcApplnInit (void)
     }
 
     /* callback to see if there is any overflow of data on the GPIF II side*/
-    CyU3PPibRegisterCallback (PibEventCallback, 0xffff );
+    CyU3PPibRegisterCallback (PibEventCallback, 0 ); //0xffff ^ ( (1<<(CYU3P_PIB_ERR_THR0_WR_OVERRUN)) | 0 )  );  //Don't warn me about a regular under-run.
 
 
     /* Initialize the GPIO module. This is used to update the indicator LED. */
@@ -611,10 +626,7 @@ CyFxIsoSrcApplnInit (void)
     }
 
 
-
-
-
-
+    CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Past GPIO Init\r\n");
 
     //Continue normal start
 

@@ -36,7 +36,7 @@
     <DRQ />
     <AddrData />
     <State ElementId="STARTSTATE0" StateType="StartState">
-      <DisplayName>START</DisplayName>
+      <DisplayName>STARTNULL</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
       <RepeatCount>0</RepeatCount>
     </State>
@@ -54,6 +54,39 @@
         <ControlPinName>CE</ControlPinName>
       </Action>
     </State>
-    <Transition ElementId="TRANSITION2" SourceState="STARTSTATE0" DestinationState="STATE8" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION1" SourceState="STARTSTATE1" DestinationState="STATE8" Equation="LOGIC_ONE" />
+    <State ElementId="STATE0" StateType="NormalState">
+      <DisplayName>STATE0</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <State ElementId="STARTSTATE1" StateType="StartState">
+      <DisplayName>STARTRX</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE0" Equation="LOGIC_ONE" />
+    <State ElementId="STATE1" StateType="NormalState">
+      <DisplayName>STATE1</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+      <Action ElementId="DR_DATA0" ActionType="DR_DATA">
+        <IsDataCounterConnected>False</IsDataCounterConnected>
+        <DataSourceSink>Socket</DataSourceSink>
+        <ThreadNumber>Thread0</ThreadNumber>
+        <SyncBurstMode>Enable</SyncBurstMode>
+        <DriveNewData>DriveNewData</DriveNewData>
+        <UpdateSource>True</UpdateSource>
+      </Action>
+      <Action ElementId="DR_GPIO0" ActionType="DR_GPIO">
+        <ControlPinName>CE</ControlPinName>
+      </Action>
+    </State>
+    <State ElementId="STARTSTATE2" StateType="StartState">
+      <DisplayName>STARTTX</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <Transition ElementId="TRANSITION2" SourceState="STARTSTATE2" DestinationState="STATE1" Equation="LOGIC_ONE" />
   </StateMachine>
 </GPIFIIModel>
