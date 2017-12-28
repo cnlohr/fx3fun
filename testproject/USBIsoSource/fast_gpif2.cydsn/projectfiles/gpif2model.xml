@@ -54,7 +54,6 @@
         <ControlPinName>CE</ControlPinName>
       </Action>
     </State>
-    <Transition ElementId="TRANSITION1" SourceState="STARTSTATE1" DestinationState="STATE8" Equation="LOGIC_ONE" />
     <State ElementId="STATE0" StateType="NormalState">
       <DisplayName>STATE0</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
@@ -65,7 +64,6 @@
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
       <RepeatCount>0</RepeatCount>
     </State>
-    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE0" Equation="LOGIC_ONE" />
     <State ElementId="STATE1" StateType="NormalState">
       <DisplayName>STATE1</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
@@ -87,6 +85,32 @@
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
       <RepeatCount>0</RepeatCount>
     </State>
+    <Transition ElementId="TRANSITION1" SourceState="STARTSTATE1" DestinationState="STATE8" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE0" Equation="LOGIC_ONE" />
     <Transition ElementId="TRANSITION2" SourceState="STARTSTATE2" DestinationState="STATE1" Equation="LOGIC_ONE" />
+    <State ElementId="STARTSTATE3" StateType="StartState">
+      <DisplayName>STARTRX2</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <State ElementId="STATE3" StateType="NormalState">
+      <DisplayName>STATE3</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+      <Action ElementId="IN_DATA0" ActionType="IN_DATA">
+        <DataSourceSink>Socket</DataSourceSink>
+        <ThreadNumber>Thread0</ThreadNumber>
+        <SampleData>True</SampleData>
+        <WriteDataIntoDataSink>True</WriteDataIntoDataSink>
+      </Action>
+    </State>
+    <State ElementId="STATE4" StateType="NormalState">
+      <DisplayName>STATE4</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <Transition ElementId="TRANSITION3" SourceState="STARTSTATE3" DestinationState="STATE3" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION4" SourceState="STATE3" DestinationState="STATE4" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION5" SourceState="STATE4" DestinationState="STATE3" Equation="LOGIC_ONE" />
   </StateMachine>
 </GPIFIIModel>

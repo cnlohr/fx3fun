@@ -159,6 +159,48 @@ CyFxIsoSrcApplnDebugInit (void)
     }
 }
 
+/* Callback funtion for the DMA event notification. */
+void
+CyFxIsoSrcDmaCallback (
+        CyU3PDmaChannel   *chHandle, /* Handle to the DMA channel. */
+        CyU3PDmaCbType_t  type,      /* Callback type.             */
+        CyU3PDmaCBInput_t *input)    /* Callback status.           */
+{
+    CyU3PDmaBuffer_t buf_p;
+    CyU3PReturnStatus_t status = CY_U3P_SUCCESS;
+
+    if (type == CY_U3P_DMA_CB_CONS_EVENT)
+    {
+    	//XXX XXX XXX THIS CODE SHOULD NOT BE EXECUTED ANYMORE!!!! SHOULD BE ABLE TO REMOVE.
+
+        /* This is a consume event notification to the CPU. This notification is 
+         * received when a buffer is sent out from the device. We have to commit
+         * a new buffer as soon as a buffer is available to implement the data
+         * source. The data is preloaded into the buffer at that start. So just
+         * commit the buffer. */
+        status = CyU3PDmaChannelGetBuffer (chHandle, &buf_p, CYU3P_NO_WAIT);
+        if (status == CY_U3P_SUCCESS)
+        {
+            /* Commit the full buffer with default status. */
+            status = CyU3PDmaChannelCommitBuffer (chHandle, buf_p.size, 0);
+            if (status != CY_U3P_SUCCESS)
+            {
+                CyU3PDebugPrint (4, "CyU3PDmaChannelCommitBuffer failed, Error code = %d\n", status);
+            }
+        }
+        else
+        {
+            CyU3PDebugPrint (4, "CyU3PDmaChannelGetBuffer failed, Error code = %d\n", status);
+        }
+
+        /* Increment the counter. */
+        glDMATxCount++;
+
+        CyU3PDebugPrint (4, "DMA!!!\r\n" );
+        CyU3PUsbLPMDisable ();
+    }
+}
+
 /* This function starts the ISO loop application. This is called
  * when a SET_CONF event is received from the USB host. The endpoints
  * are configured and the DMA pipe is setup in this function. */
@@ -306,16 +348,13 @@ CyFxIsoSrcApplnStart (
 
     /* Start the GPIF state machine */
     //apiRetStatus = CyU3PGpifSMStart (STARTNULL, ALPHA_STARTNULL);
-
-
-#if 1
     apiRetStatus = CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
         CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpifSMStart Failed, Error code = %d\r\n", apiRetStatus);
         CyFxAppErrorHandler (apiRetStatus);
     }
-#endif
+
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -386,8 +425,6 @@ CyFxIsoSrcApplnUSBSetupCB (
     bRequest = ((setupdat0 & CY_U3P_USB_REQUEST_MASK) >> CY_U3P_USB_REQUEST_POS);
     wValue   = ((setupdat0 & CY_U3P_USB_VALUE_MASK)   >> CY_U3P_USB_VALUE_POS);
 
-    CyU3PDebugPrint (4, "Custom Request %02x %02x %04x\n", bReqType, bRequest, wValue);
-
     if (bType == CY_U3P_USB_STANDARD_RQT)
     {
         /* Handle SET_FEATURE(FUNCTION_SUSPEND) and CLEAR_FEATURE(FUNCTION_SUSPEND)
@@ -412,9 +449,6 @@ CyFxIsoSrcApplnUSBSetupCB (
         glCtrlDat1 = setupdat1;
         isHandled  = CyTrue;            /* Tell the driver that this request has been handled, so that
                                            the driver does not take any default action. */
-
-
-
 
         /* Send an event to the thread, asking for this control request to be handled. */
         CyU3PEventSet (&glAppEvent, CYFX_ISOAPP_CTRL_TASK, CYU3P_EVENT_OR);
@@ -503,7 +537,7 @@ PibEventCallback (
         switch (CYU3P_GET_PIB_ERROR_TYPE (cbArg))
         {
             case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-                //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "O");
+                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "O");
             	DataOverrunErrors++;            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
                 break;
             case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
@@ -573,10 +607,7 @@ CyFxIsoSrcApplnInit (void)
     }
 
     /* callback to see if there is any overflow of data on the GPIF II side*/
-    //XXX Why is CYU3P_PIB_ERR_THR0_WR_OVERRUN getting called incessently?
-    //CyU3PPibRegisterCallback (PibEventCallback, 0xfffb ); //Don't warn about CYU3P_PIB_ERR_THR0_WR_OVERRUN.  Seems to cause problems.
-    CyU3PPibRegisterCallback (PibEventCallback, 0xffff ); //Well, this seems not to break it?
-    //DataOverrunErrors
+    CyU3PPibRegisterCallback (PibEventCallback, 0xff00 ); //0xffff ^ ( (1<<(CYU3P_PIB_ERR_THR0_WR_OVERRUN)) | 0 )  );  //Don't warn me about a regular under-run.
 
 
     /* Initialize the GPIO module. This is used to update the indicator LED. */

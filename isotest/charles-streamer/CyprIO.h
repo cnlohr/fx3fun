@@ -92,8 +92,13 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths );
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface );
 
 //Control messages
-int CyprIoControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, ULONG len);
+int CyprIOControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, ULONG len);
 PSINGLE_TRANSFER FillSingleControlTransfer( char * buf, int bRequest, int wvhi, int wvlo, int wIndex, int wLength);
+
+//Sort of utiltiy that binds the above 2. Mimics libusb_control_transfer from libusb, to ease portability.  Only for IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER.  Other messages must be done using the other mechanisms.
+int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
+
+
 int CyprIOGetString( struct CyprIO * ths, wchar_t *str, UCHAR sIndex);
 
 

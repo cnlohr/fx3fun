@@ -12,11 +12,11 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	bytes += length;
 	double Now = OGGetAbsoluteTime();
 	//if( data[0] != 0xaa ) printf( "Bad data\n" );
-	
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f KB/s [%02x %02x]\n", bytes/1024, data[0], data[1] );
+
+		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000, data[0], data[1] );
 		Last++;
 		bytes = 0;
 	}
@@ -77,8 +77,21 @@ int main()
 	}
 	
 #else
+	
+#if 0
+	int i;
+	for( i = 0; i < 10; i++ )
+	{
+		char buf[64];
+		memcpy( buf, "hello", 5 );
+		//CyprIOControl( ep->parent, 0xc0, buf, 5 );
+		PSINGLE_TRANSFER pSingleTransfer = FillSingleControlTransfer( buf, 0xc0, 0xc0, 0xc0, 0xcc, 5 );
+		int e = CyprIOControl( &eps.CypIOEndpoints[0], IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, sizeof(SINGLE_TRANSFER)+2 );
+//		int e = CyprIOControl( &eps.CypIOEndpoints[0], 0x40, buf, 5 );
+		printf( "GOT: %d\n", e );
+	}
+	#endif
 	Last = OGGetAbsoluteTime();
-
 	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
 
 

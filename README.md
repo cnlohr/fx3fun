@@ -194,3 +194,9 @@ The GPIF designer is pretty easy to use.  Took a bit to get the hang of it, but 
 Spend 20 minutes dinking more... I think it's time to ask for help and go do regular work.
 
 https://community.cypress.com/message/148992#148992
+
+Well, got that working.  Was a simple buffer problem.  
+
+I'm gonna need a way of selecting between different run modes, maybe slower modes, too.  Better get control messages going.  libusb did it right.  We should mimic them.
+
+This is totally kicking my butt.  My function somehow differs from theirs.
