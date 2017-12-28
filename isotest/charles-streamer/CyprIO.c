@@ -295,7 +295,6 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 				iDevice++;
 				continue;
 			}
-			
 			ths->hDevice = hFile;
 			Devices = 1;
 			SetupDiDestroyDeviceInfoList(hwDeviceInfo);
@@ -309,26 +308,6 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 }
 
 
-
-PSINGLE_TRANSFER FillSingleControlTransfer( char * buf, int bRequest, int wvhi, int wvlo, int wIndex, int wLength)
-{
-	PSINGLE_TRANSFER pSingleTransfer = (PSINGLE_TRANSFER) buf;
-    pSingleTransfer->SetupPacket.bmReqType.Direction = DIR_DEVICE_TO_HOST;
-    pSingleTransfer->SetupPacket.bmReqType.Type      = 0;
-    pSingleTransfer->SetupPacket.bmReqType.Recipient = 0;
-    pSingleTransfer->SetupPacket.bRequest = bRequest;
-    pSingleTransfer->SetupPacket.wVal.hiByte = wvhi;
-    pSingleTransfer->SetupPacket.wVal.lowByte = wvlo;
-    pSingleTransfer->SetupPacket.wLength = wLength;
-    pSingleTransfer->SetupPacket.ulTimeOut = 5;
-    pSingleTransfer->BufferLength = pSingleTransfer->SetupPacket.wLength;
-    pSingleTransfer->BufferOffset = sizeof(SINGLE_TRANSFER);
-	return pSingleTransfer;
-}
-	
-	
-	
-
 int CyprIOControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, uint32_t len)
 {
     if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
@@ -337,72 +316,99 @@ int CyprIOControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, uint32_t le
 	return !bDioRetVal || (ths->BytesXferedLastControl != len);
 }
 
+int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout )
+{
+	DWORD received = 0;
+	int buflen = sizeof( SINGLE_TRANSFER );
+	//if( !(bmRequestType & 0x80) )
+	{
+		//out type tranfer.
+		buflen += wLength;
+	}
+	uint8_t * buffer = (uint8_t*)malloc(buflen);  //XXX TODO: Figure out why this somethings makes things go bad if you alloca this.
+	ZeroMemory( buffer, buflen );
+	
+	PSINGLE_TRANSFER st = (PSINGLE_TRANSFER)buffer;
+    st->SetupPacket.bmRequest = bmRequestType;
+    st->SetupPacket.bRequest = bRequest;
+	st->SetupPacket.wValue = wValue;
+	st->SetupPacket.wIndex = wIndex;
+	st->SetupPacket.wLength = wLength;
+	st->SetupPacket.ulTimeOut = (timeout/1000)+1;
+	st->BufferLength = wLength;
+	st->BufferOffset = sizeof( SINGLE_TRANSFER );
+	st->ucEndpointAddress = 0;
+	st->NtStatus = st->UsbdStatus = st->IsoPacketOffset = st->IsoPacketLength = 0;
+
+	if( bmRequestType & 0x80 )
+	{
+		//Direction Device to Host (in)
+		//int i; for( i = 0; i < buflen; i++ ) printf( "%02x ", buffer[i] );  printf( "\n ((%d))\n", IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER );
+		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, buffer, buflen, &received, NULL);
+		//int trueLength = (USB_COMMON_DESCRIPTOR*)((PCHAR)st + st->BufferOffset)->bLength;
+
+		if( !ret || received < sizeof( SINGLE_TRANSFER ) )
+		{
+			ths->BytesXferedLastControl = -1;
+			free( buffer );
+			return -GetLastError();
+		}
+		received-=sizeof( SINGLE_TRANSFER ); 
+		ths->BytesXferedLastControl = received;
+		memcpy( data, buffer + sizeof( SINGLE_TRANSFER ), received );
+		free( buffer );
+		return received;
+	}
+	else
+	{
+		//Direction Host to Device (out)
+		memcpy( buffer + sizeof( SINGLE_TRANSFER ), data, wLength );
+		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, 0, 0, 0, NULL);
+		if( !ret )
+		{
+			ths->BytesXferedLastControl = -1;
+			free( buffer );
+			return -GetLastError();
+		}
+		ths->BytesXferedLastControl = 0;
+		free( buffer );
+		return wLength-sizeof( SINGLE_TRANSFER );
+	}
+}
+
 
 int CyprIOGetString( struct CyprIO * ths, wchar_t *str, UCHAR sIndex)
 {
-    // Get the header to find-out the number of languages, size of lang ID list
-    ULONG length = sizeof(SINGLE_TRANSFER) + sizeof(USB_COMMON_DESCRIPTOR);
-    UCHAR buf[length];
-	int bRetVal;
-	ZeroMemory (str, USB_STRING_MAXLEN);
-	ZeroMemory( buf, sizeof(buf ) );
-	
-    USB_COMMON_DESCRIPTOR cmnDescriptor;
-	PSINGLE_TRANSFER pSingleTransfer;
-	
-	pSingleTransfer = FillSingleControlTransfer( buf,USB_REQUEST_GET_DESCRIPTOR, USB_STRING_DESCRIPTOR_TYPE, sIndex, ths->StrLangID, sizeof(USB_COMMON_DESCRIPTOR) );
-	bRetVal = CyprIOControl( ths,IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-    if (bRetVal)
+	uint8_t buffer[USB_STRING_MAXLEN+2];
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8) | sIndex, ths->StrLangID, buffer, sizeof( buffer ), 1000 );
+	if( ret <= 0 )
 	{
-		DEBUGINFO( "Error getting length of string\n" );
-		return bRetVal;
+		return ret;
 	}
 	
-
-	memcpy(&cmnDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), sizeof(USB_COMMON_DESCRIPTOR));
-
-	// Get the entire descriptor
-	length = sizeof(SINGLE_TRANSFER) + cmnDescriptor.bLength;
-	UCHAR buf2[length];
-	ZeroMemory( buf2, sizeof(buf2 ) );
-	pSingleTransfer = FillSingleControlTransfer( buf2, USB_REQUEST_GET_DESCRIPTOR, USB_STRING_DESCRIPTOR_TYPE, sIndex, ths->StrLangID, cmnDescriptor.bLength );
-	bRetVal = CyprIOControl(ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf2, length);
-
+	UCHAR bytes = buffer[0];
+	UCHAR signature = buffer[1];
 	
-	UCHAR bytes = (buf2[sizeof(SINGLE_TRANSFER)]);
-	UCHAR signature = (buf2[sizeof(SINGLE_TRANSFER)+1]);
-	
-	if (!bRetVal && (bytes>2) && (signature == 0x03)) {
-		memcpy(str, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset+2), bytes-2);
+	if( ret>2  && signature == 0x03 )
+	{
+		memcpy(str, buffer+2, bytes-2);
 		return 0;
 	}
-	return 1;
+	return -2;
 }
 
 
 static int CyprIOGetInteralBOSDescriptor( struct CyprIO * ths )
 {
-    ULONG length = sizeof(SINGLE_TRANSFER) + sizeof(USB_BOS_DESCRIPTOR);
-    UCHAR buf[length];
-	int bRetVal;
-    PSINGLE_TRANSFER pSingleTransfer;
-
-	pSingleTransfer = FillSingleControlTransfer( buf, USB_REQUEST_GET_DESCRIPTOR, USB_BOS_DESCRIPTOR_TYPE, 0, 0, sizeof(USB_BOS_DESCRIPTOR) );
-	bRetVal = CyprIOControl(ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-    if (bRetVal) return bRetVal;
-
-	PUSB_BOS_DESCRIPTOR BosDesc = (PUSB_BOS_DESCRIPTOR)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset);
-	USHORT BosDescLength= BosDesc->wTotalLength;
-
-	length = sizeof(SINGLE_TRANSFER) + BosDescLength;
-	UCHAR buf2[length];
-	pSingleTransfer = FillSingleControlTransfer( buf2, USB_REQUEST_GET_DESCRIPTOR, USB_BOS_DESCRIPTOR_TYPE, 0, 0, BosDescLength );
-	bRetVal = CyprIOControl(ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf2, length);
-	if (bRetVal) return bRetVal;
-
-	ths->pUsbBosDescriptor = (PUSB_BOS_DESCRIPTOR)malloc(BosDescLength);        
-	memcpy(ths->pUsbBosDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), BosDescLength);
-    return bRetVal;
+	uint8_t buffer[1024];
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, USB_BOS_DESCRIPTOR_TYPE<<8, 0, buffer, sizeof( buffer ), 1000 );
+	if( ret <= 0 )
+	{
+		return ret;
+	}
+	ths->pUsbBosDescriptor = (PUSB_BOS_DESCRIPTOR)malloc( ret );
+	memcpy( ths->pUsbBosDescriptor, buffer, ret );
+	return 0;
 }
 
 
@@ -418,35 +424,18 @@ static int PrintWString( wchar_t * ct )
 
 static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 {
-	if( descIndex > sizeof( ths->USBConfigDescriptors ) / sizeof( ths->USBConfigDescriptors[0] ) )
-		return -2;
 	
-    ULONG length = sizeof(SINGLE_TRANSFER) + sizeof(USB_CONFIGURATION_DESCRIPTOR);
-    UCHAR buf[length];
-	int bRetVal;
-    PSINGLE_TRANSFER pSingleTransfer;
-
-    ZeroMemory(buf, length);
-
-	pSingleTransfer = FillSingleControlTransfer( buf, USB_REQUEST_GET_DESCRIPTOR, USB_CONFIGURATION_DESCRIPTOR_TYPE, descIndex, 0, sizeof(USB_CONFIGURATION_DESCRIPTOR) );
-	bRetVal = CyprIOControl(ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-    if (bRetVal) {
-		return -1;
+	uint8_t buffer[1024];
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_CONFIGURATION_DESCRIPTOR_TYPE<<8) | descIndex, 0, buffer, sizeof( buffer ), 1000 );
+	printf( "RET: %d\n", ret );
+	if( ret <= 0 )
+	{
+		return ret;
 	}
-	PUSB_CONFIGURATION_DESCRIPTOR configDesc = (PUSB_CONFIGURATION_DESCRIPTOR)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset);
-	USHORT configDescLength= configDesc->wTotalLength;
-
-	length = sizeof(SINGLE_TRANSFER) + configDescLength;
-	UCHAR buf2[length];
-	ZeroMemory (buf2, length);
-	pSingleTransfer = FillSingleControlTransfer( buf2, USB_REQUEST_GET_DESCRIPTOR, USB_CONFIGURATION_DESCRIPTOR_TYPE, descIndex, 0, configDescLength );
-	bRetVal = CyprIOControl(ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf2, length);
-    if (bRetVal) {
-		return -1;
-	}
-	ths->USBConfigDescriptors[descIndex] = (PUSB_CONFIGURATION_DESCRIPTOR)malloc(configDescLength);
-	memcpy(ths->USBConfigDescriptors[descIndex], (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), configDescLength);
+	ths->USBConfigDescriptors[descIndex] = (PUSB_CONFIGURATION_DESCRIPTOR)malloc(ret);
+	memcpy(ths->USBConfigDescriptors[descIndex], buffer, ret);
 	return 0;
+	
 }
 
 
@@ -454,7 +443,7 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 {
 	PSINGLE_TRANSFER pSingleTransfer;
 	HANDLE hd = ths->hDevice;
-	char buf[80];
+	char buf[256];
 	int bRetVal;
     ULONG length;
 	USB_COMMON_DESCRIPTOR cmnDescriptor;
@@ -466,27 +455,21 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	}
 	
     //USB_DEVICE_DESCRIPTOR devDescriptor;
-    pSingleTransfer = FillSingleControlTransfer( buf, USB_REQUEST_GET_DESCRIPTOR, USB_DEVICE_DESCRIPTOR_TYPE, 0, 0, sizeof(USB_DEVICE_DESCRIPTOR) );
-	length = sizeof(SINGLE_TRANSFER) + sizeof(USB_DEVICE_DESCRIPTOR);
-	bRetVal = CyprIOControl( ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-    if (bRetVal) {	return bRetVal;	}
-	memcpy(&ths->USBDeviceDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), sizeof(USB_DEVICE_DESCRIPTOR));
-
+printf( "ENUM 1" );
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_DEVICE_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&ths->USBDeviceDescriptor, sizeof(USB_DEVICE_DESCRIPTOR), 2000 );
+    if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
 	//printf( "Got USB Descriptor for: %04x:%04x\n", ths->USBDeviceDescriptor.idVendor, ths->USBDeviceDescriptor.idProduct );
+printf( "ENUM 2" );
 
-    pSingleTransfer = FillSingleControlTransfer( buf, USB_REQUEST_GET_DESCRIPTOR, USB_STRING_DESCRIPTOR_TYPE, 0, 0, sizeof(USB_COMMON_DESCRIPTOR) );
-	length = sizeof(SINGLE_TRANSFER) + sizeof(USB_COMMON_DESCRIPTOR);
-	bRetVal = CyprIOControl( ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-	memcpy(&cmnDescriptor, (PVOID)((PCHAR)pSingleTransfer + pSingleTransfer->BufferOffset), sizeof(USB_COMMON_DESCRIPTOR));
-	if( bRetVal ) { return bRetVal; }
-	
+	ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&cmnDescriptor, sizeof(USB_COMMON_DESCRIPTOR), 2000 );
+    if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
+printf( "ENUM 3" );
+
 	int LangIDs = (cmnDescriptor.bLength - 2 ) / 2;
-	// Get the entire descriptor, all LangIDs
-    pSingleTransfer = FillSingleControlTransfer( buf, USB_REQUEST_GET_DESCRIPTOR, USB_STRING_DESCRIPTOR_TYPE, 0, 0, cmnDescriptor.bLength );
-	length = sizeof(SINGLE_TRANSFER) + cmnDescriptor.bLength;
-	bRetVal = CyprIOControl( ths, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, length);
-	if( bRetVal ) { return bRetVal; }
-	PUSB_STRING_DESCRIPTOR IDs = (PUSB_STRING_DESCRIPTOR) (buf + sizeof(SINGLE_TRANSFER));
+	ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)buf, sizeof( buf ), 2000 );
+    if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
+
+	PUSB_STRING_DESCRIPTOR IDs = (PUSB_STRING_DESCRIPTOR)buf;
 
 	ths->StrLangID =(LangIDs) ? IDs[0].bString[0] : 0;
 
@@ -587,7 +570,6 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 		DEBUGINFO( "Error: CyprIOSetup called on a non-open device\n" );
 		return -1;
 	}
-	
 	/* The folllowing code is kind of after of the 
 			for (int i=0; i<Configs; i++) 
 				{

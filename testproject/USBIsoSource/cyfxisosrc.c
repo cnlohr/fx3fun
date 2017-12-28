@@ -57,6 +57,8 @@ CyU3PDmaChannel glChHandleIsoSrc;       /* DMA MANUAL_OUT channel handle */
 
 
 uint32_t DataOverrunErrors = 0;
+uint32_t dmaevent;
+uint32_t KeepDataAlive = 0;	//XXX Tricky: The chip seems to hose itself if you let it run with nothing consuming the data.  Do this to make sure we only run for a little while before getting some messages back from the host on the control ports.
 
 CyBool_t glIsApplnActive = CyFalse;     /* Whether the loopback application is active or not. */
 uint32_t glDMARxCount = 0;              /* Counter to track the number of buffers received. */
@@ -159,6 +161,17 @@ CyFxIsoSrcApplnDebugInit (void)
     }
 }
 
+void DMACallback (
+        CyU3PDmaChannel   *chHandle, /* Handle to the DMA channel. */
+        CyU3PDmaCbType_t  type,      /* Callback type.             */
+        CyU3PDmaCBInput_t *input)    /* Callback status.           */
+{
+	dmaevent++;
+
+    CyU3PDebugPrint (4, "DMA EVENT\r\n", type);
+
+}
+
 /* This function starts the ISO loop application. This is called
  * when a SET_CONF event is received from the USB host. The endpoints
  * are configured and the DMA pipe is setup in this function. */
@@ -235,14 +248,15 @@ CyFxIsoSrcApplnStart (
     }
 
     /* Multiply the buffer size with the burst value for performance improvement. */
-    dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
+    //dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
     //dmaCfg.size           = DMA_IN_BUF_SIZE;
+    dmaCfg.size           = 32768;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
     dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
     dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET; // Was CY_U3P_CPU_SOCKET_PROD; XXX CNLohr
     dmaCfg.consSckId      = CY_FX_EP_CONSUMER_SOCKET;
-    dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE;
-    dmaCfg.notification   = CY_U3P_DMA_CB_CONS_EVENT;
-    dmaCfg.cb             = 0; //CyFxIsoSrcDmaCallback; XXX CNL
+    dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Doesn't fix it if moving to CY_U3P_DMA_MODE_BUFFER :(
+    dmaCfg.notification   = 0xffffff; //CY_U3P_DMA_CB_CONS_EVENT;
+    dmaCfg.cb             = DMACallback ; //CyFxIsoSrcDmaCallback; XXX CNL
     dmaCfg.prodHeader     = 0;
     dmaCfg.prodFooter     = 0;
     dmaCfg.consHeader     = 0;
@@ -308,7 +322,7 @@ CyFxIsoSrcApplnStart (
     //apiRetStatus = CyU3PGpifSMStart (STARTNULL, ALPHA_STARTNULL);
 
 
-#if 1
+#if 0
     apiRetStatus = CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
@@ -386,8 +400,6 @@ CyFxIsoSrcApplnUSBSetupCB (
     bRequest = ((setupdat0 & CY_U3P_USB_REQUEST_MASK) >> CY_U3P_USB_REQUEST_POS);
     wValue   = ((setupdat0 & CY_U3P_USB_VALUE_MASK)   >> CY_U3P_USB_VALUE_POS);
 
-    CyU3PDebugPrint (4, "Custom Request %02x %02x %04x\n", bReqType, bRequest, wValue);
-
     if (bType == CY_U3P_USB_STANDARD_RQT)
     {
         /* Handle SET_FEATURE(FUNCTION_SUSPEND) and CLEAR_FEATURE(FUNCTION_SUSPEND)
@@ -413,11 +425,25 @@ CyFxIsoSrcApplnUSBSetupCB (
         isHandled  = CyTrue;            /* Tell the driver that this request has been handled, so that
                                            the driver does not take any default action. */
 
-
-
-
-        /* Send an event to the thread, asking for this control request to be handled. */
-        CyU3PEventSet (&glAppEvent, CYFX_ISOAPP_CTRL_TASK, CYU3P_EVENT_OR);
+        //XXX NOTE: Could handle special requests in here if really low latency is needed.
+        if( bRequest == 0xaa )
+        {
+        	uint32_t sendback[10];
+        	sendback[0] = 0xaabbccdd;
+        	sendback[1] = DataOverrunErrors;
+        	sendback[2] = dmaevent;
+            CyU3PUsbSendEP0Data (12, sendback);  //Sends back "hello"
+            if( KeepDataAlive == 0 )
+            {
+            	CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
+            }
+            KeepDataAlive = 12000*2; //~1.9 seconds.
+        }
+        else
+        {
+        	/* Send an event to the thread, asking for this control request to be handled. */
+        	CyU3PEventSet (&glAppEvent, CYFX_ISOAPP_CTRL_TASK, CYU3P_EVENT_OR);
+        }
     }
 
     return isHandled;
@@ -505,6 +531,15 @@ PibEventCallback (
             case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
                 //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "O");
             	DataOverrunErrors++;            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
+            	if( KeepDataAlive )
+            	{
+            		KeepDataAlive--;
+            		if( KeepDataAlive == 0 )
+            		{
+            		    CyU3PGpifDisable( 0 );
+            			//Stop session.
+            		}
+            	}
                 break;
             case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
                 CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_WR_OVERRUN\r\n");
@@ -556,7 +591,7 @@ CyFxIsoSrcApplnInit (void)
     pibClock.clkDiv      = 4;
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse;
-    pibClock.isDllEnable = CyFalse;
+    pibClock.isDllEnable = CyTrue;
     apiRetStatus = CyU3PPibInit (CyTrue, &pibClock);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {

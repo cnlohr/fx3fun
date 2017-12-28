@@ -7,6 +7,22 @@
 double Last;
 double bytes;
 
+struct CyprIO eps;
+
+void TickCypr()
+{
+	char buf[64];
+	memcpy( buf, "hello", 5 );
+	int e = CyprIOControlTransfer( &eps, 0xc0, 0xaa, 0x0102, 0x0304, buf, 50, 5000 );
+	printf( "GOT: %d:", e );
+	int i;
+	for( i = 0; i < e; i++ )
+	{
+		printf( "%02x ", (uint8_t)buf[i] );
+	}
+	printf( "\n" );
+}
+
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
 {
 	bytes += length;
@@ -15,10 +31,11 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	if( Last + 1 < Now )
 	{
-
 		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000, data[0], data[1] );
 		Last++;
 		bytes = 0;
+
+		TickCypr();		
 	}
 	return 0;
 }
@@ -27,7 +44,6 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 int main()
 {
 	printf( "Test streamer\n" );
-	struct CyprIO eps;
 	int r = CyprIOConnect( &eps, 0, "\\\\?\\usb#vid_04b4&pid_00f1#" ); //5&c94d647&0&20#{ae18aa60-7f6a-11d4-97dd-00010229b959}" );
 	if( r )
 	{
@@ -76,24 +92,34 @@ int main()
 		#endif
 	}
 	
-#else
-	
-#if 0
+#elif 0
+
 	int i;
 	for( i = 0; i < 10; i++ )
 	{
 		char buf[64];
 		memcpy( buf, "hello", 5 );
 		//CyprIOControl( ep->parent, 0xc0, buf, 5 );
-		PSINGLE_TRANSFER pSingleTransfer = FillSingleControlTransfer( buf, 0xc0, 0xc0, 0xc0, 0xcc, 5 );
-		int e = CyprIOControl( &eps.CypIOEndpoints[0], IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, sizeof(SINGLE_TRANSFER)+2 );
+//		PSINGLE_TRANSFER pSingleTransfer = FillSingleControlTransfer( buf, 0xc0, 0xc0, 0xc0, 0xcc, 5 );
+//		int e = CyprIOControl( &eps.CypIOEndpoints[0], IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buf, sizeof(SINGLE_TRANSFER)+2 );
 //		int e = CyprIOControl( &eps.CypIOEndpoints[0], 0x40, buf, 5 );
-		printf( "GOT: %d\n", e );
+		int e = CyprIOControlTransfer( &eps, 0xc0, 0xaa, 0x0102, 0x0304, buf, 50, 5000 );
+		printf( "GOT: %d:", e );
+		int i;
+		for( i = 0; i < e; i++ )
+		{
+			printf( "%02x ", (uint8_t)buf[i] );
+		}
+		printf( "\n" );
 	}
-	#endif
-	Last = OGGetAbsoluteTime();
-	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
+	return 0;
 
+#else
+		
+	Last = OGGetAbsoluteTime();
+	TickCypr(); //Get it started.
+	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
+	printf( "Done with circular data xfer\n" );
 
 #endif	
 	
