@@ -203,3 +203,6 @@ This is totally kicking my butt.  My function somehow differs from theirs.
 
 Some sort of strange stack corruption.  Reading/writing values on the stack seems hosed.  Need to understand more.
 
+INCREDIBLE!!! So, if you start sending data to an iso port and then disconnect, if the data is still sending from the GPIF bus, and you don't send to it. 
+
+Video time!
