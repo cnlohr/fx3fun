@@ -250,13 +250,13 @@ CyFxIsoSrcApplnStart (
     /* Multiply the buffer size with the burst value for performance improvement. */
     //dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
     //dmaCfg.size           = DMA_IN_BUF_SIZE;
-    dmaCfg.size           = 32768;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
+    dmaCfg.size           = 32768;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
     dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
-    dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET; // Was CY_U3P_CPU_SOCKET_PROD; XXX CNLohr
+    dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET;
     dmaCfg.consSckId      = CY_FX_EP_CONSUMER_SOCKET;
-    dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Doesn't fix it if moving to CY_U3P_DMA_MODE_BUFFER :(
+    dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Is this right?  Changing it doesn't seem to effect anything.
     dmaCfg.notification   = 0xffffff; //CY_U3P_DMA_CB_CONS_EVENT;
-    dmaCfg.cb             = DMACallback ; //CyFxIsoSrcDmaCallback; XXX CNL
+    dmaCfg.cb             = DMACallback ; //This never seems to be called.  Could it need CY_U3P_DMA_TYPE_AUTO_SIGNAL?
     dmaCfg.prodHeader     = 0;
     dmaCfg.prodFooter     = 0;
     dmaCfg.consHeader     = 0;
@@ -273,7 +273,7 @@ CyFxIsoSrcApplnStart (
         CyFxAppErrorHandler(apiRetStatus);
     }
 
-    apiRetStatus = CyU3PDmaChannelSetXfer (&glChHandleIsoSrc, CY_FX_ISOSRC_DMA_TX_SIZE);
+    apiRetStatus = CyU3PDmaChannelSetXfer (&glChHandleIsoSrc, 0 ); //0 = unlimited.
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
         CyU3PDebugPrint (4, "CyU3PDmaChannelSetXfer Failed, Error code = %d\n", apiRetStatus);
@@ -586,12 +586,10 @@ CyFxIsoSrcApplnInit (void)
     //CyU3PGpioSimpleConfig_t gpioConfig;
     //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-    /* Initialize the p-port block. We are running the PIB Block at 48 MHz. DLL needs to be enabled for Async
-     * operation of GPIF. */
-    pibClock.clkDiv      = 4;
+    pibClock.clkDiv      = 3; //~400 MHz / 4.
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
-    pibClock.isHalfDiv   = CyFalse;
-    pibClock.isDllEnable = CyTrue;
+    pibClock.isHalfDiv   = CyTrue; //Adds 0.5 to divisor
+    pibClock.isDllEnable = CyTrue;	//For async or master-mode
     apiRetStatus = CyU3PPibInit (CyTrue, &pibClock);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
@@ -943,6 +941,7 @@ main (void)
     io_cfg.useI2S    = CyFalse;
     io_cfg.useSpi    = CyFalse;
     io_cfg.lppMode   = CY_U3P_IO_MATRIX_LPP_UART_ONLY;
+
     /* No GPIOs are enabled. */
     io_cfg.gpioSimpleEn[0]  = 0;
     io_cfg.gpioSimpleEn[1]  = 0;

@@ -206,3 +206,11 @@ Some sort of strange stack corruption.  Reading/writing values on the stack seem
 INCREDIBLE!!! So, if you start sending data to an iso port and then disconnect, if the data is still sending from the GPIF bus, and you don't send to it. 
 
 Video time!
+
+Ok, video didn't go well.
+
+2 AM 12/29/2017: Trying out different sizes of DMA, etc.  Looks like it works in chunks of 2048 just fine but still overflows incessently.
+
+Post reply to https://community.cypress.com/thread/32169
+
+Dinked around for about an hour, got nowhere with the bandwidth, though I did notice I can overclock my bus to 8/7ths of 100 MHz :-D
