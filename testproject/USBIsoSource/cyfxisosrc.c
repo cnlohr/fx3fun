@@ -278,7 +278,7 @@ CyFxIsoSrcApplnStart (
 
     CyU3PDmaMultiChannelConfig_t dmaCfg;
     memset( (void*)&dmaCfg, 0, sizeof( dmaCfg ) );
-    dmaCfg.size            = 16384;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
+    dmaCfg.size            = 32768;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
      dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
      dmaCfg.prodSckId[0]   = CY_U3P_PIB_SOCKET_0;
      dmaCfg.prodSckId[1]   = CY_U3P_PIB_SOCKET_1;
@@ -294,6 +294,9 @@ CyFxIsoSrcApplnStart (
 
 
     apiRetStatus = CyU3PDmaMultiChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_AUTO_MANY_TO_ONE, &dmaCfg);
+
+    CyU3PGpifSocketConfigure(0,CY_U3P_PIB_SOCKET_0,1,CyTrue,1);
+    CyU3PGpifSocketConfigure(1,CY_U3P_PIB_SOCKET_1,1,CyTrue,1);
 #endif
 
     if (apiRetStatus != CY_U3P_SUCCESS)

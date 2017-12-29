@@ -46,12 +46,34 @@
       <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
     </CyNormalState>
     <CyNormalState>
-      <Left>916</Left>
-      <Top>218.41</Top>
+      <Left>880</Left>
+      <Top>219.41</Top>
       <Width>83</Width>
       <Height>70</Height>
       <Name>STATE4</Name>
       <DisplayName>STATE4</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyNormalState>
+    <CyNormalState>
+      <Left>856</Left>
+      <Top>117</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STATE2</Name>
+      <DisplayName>STATE2X</DisplayName>
+      <zIndex>1</zIndex>
+      <IsGroup>False</IsGroup>
+      <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
+    </CyNormalState>
+    <CyNormalState>
+      <Left>766</Left>
+      <Top>334</Top>
+      <Width>83</Width>
+      <Height>70</Height>
+      <Name>STATE5</Name>
+      <DisplayName>STATE5</DisplayName>
       <zIndex>1</zIndex>
       <IsGroup>False</IsGroup>
       <ParentID>00000000-0000-0000-0000-000000000000</ParentID>
@@ -103,9 +125,9 @@
   </CyStates>
   <CyTransitions>
     <CyTransition>
-      <Name>TRANSITION6</Name>
-      <TransitionEquation>!DMA_RDY_TH1</TransitionEquation>
-      <SourceName>STATE4</SourceName>
+      <Name>TRANSITION7</Name>
+      <TransitionEquation>LOGIC_ONE</TransitionEquation>
+      <SourceName>STATE5</SourceName>
       <SinkName>STATE3</SinkName>
       <SourceConnectorName>Connector</SourceConnectorName>
       <SinkConnectorName>Connector</SinkConnectorName>
@@ -114,10 +136,32 @@
       <zIndex>0</zIndex>
     </CyTransition>
     <CyTransition>
-      <Name>TRANSITION4</Name>
-      <TransitionEquation>!DMA_RDY_TH0</TransitionEquation>
-      <SourceName>STATE3</SourceName>
+      <Name>TRANSITION6</Name>
+      <TransitionEquation>DMA_WM_TH1</TransitionEquation>
+      <SourceName>STATE4</SourceName>
+      <SinkName>STATE5</SinkName>
+      <SourceConnectorName>Connector</SourceConnectorName>
+      <SinkConnectorName>Connector</SinkConnectorName>
+      <SourceArrowSymbol>None</SourceArrowSymbol>
+      <SinkArrowSymbol>Arrow</SinkArrowSymbol>
+      <zIndex>0</zIndex>
+    </CyTransition>
+    <CyTransition>
+      <Name>TRANSITION5</Name>
+      <TransitionEquation>LOGIC_ONE</TransitionEquation>
+      <SourceName>STATE2</SourceName>
       <SinkName>STATE4</SinkName>
+      <SourceConnectorName>Connector</SourceConnectorName>
+      <SinkConnectorName>Connector</SinkConnectorName>
+      <SourceArrowSymbol>None</SourceArrowSymbol>
+      <SinkArrowSymbol>Arrow</SinkArrowSymbol>
+      <zIndex>0</zIndex>
+    </CyTransition>
+    <CyTransition>
+      <Name>TRANSITION4</Name>
+      <TransitionEquation>DMA_WM_TH0</TransitionEquation>
+      <SourceName>STATE3</SourceName>
+      <SinkName>STATE2</SinkName>
       <SourceConnectorName>Connector</SourceConnectorName>
       <SinkConnectorName>Connector</SinkConnectorName>
       <SourceArrowSymbol>None</SourceArrowSymbol>

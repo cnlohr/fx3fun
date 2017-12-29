@@ -1,6 +1,6 @@
 /*
  * Project Name: fast_gpif2.cyfx
- * Time : 12/29/2017 07:56:40
+ * Time : 12/29/2017 16:21:29
  * Device Type: FX3
  * Project Type: GPIF2
  *
@@ -21,7 +21,7 @@
 /* Summary
    Number of states in the state machine
  */
-#define CY_NUMBER_OF_STATES 9
+#define CY_NUMBER_OF_STATES 11
 
 /* Summary
    Mapping of user defined state names to state indices
@@ -34,7 +34,9 @@
 #define STARTTX 5
 #define STARTRX2 6
 #define STATE3 7
-#define STATE4 8
+#define STATE4 9
+#define STATE5 10
+#define STATE2X 8
 
 
 /* Summary
@@ -50,7 +52,7 @@
    Transition function values used in the state machine.
  */
 uint16_t CyFxGpifTransition[]  = {
-    0x0000, 0x5555
+    0x0000, 0xAAAA, 0xFFFF
 };
 
 /* Summary
@@ -64,15 +66,17 @@ CyU3PGpifWaveData CyFxGpifWavedata[]  = {
     {{0x00000000,0x00000000,0x00000000},{0x00000000,0x00000000,0x00000000}},
     {{0x00000002,0x20000000,0x80000000},{0x00000000,0x00000000,0x00000000}},
     {{0x00000004,0x00000000,0x80000000},{0x00000000,0x00000000,0x00000000}},
-    {{0x1E739A07,0x20000100,0x80400000},{0x00000000,0x00000000,0x00000000}},
-    {{0x1E739A08,0x24000100,0x80400000},{0x00000000,0x00000000,0x00000000}}
+    {{0x1E739807,0x20000100,0x80400000},{0x00000000,0x00000000,0x00000000}},
+    {{0x2E739C08,0x20000100,0x80000000},{0x00000000,0x00000000,0x00000000}},
+    {{0x1E739809,0x24000100,0x80400000},{0x00000000,0x00000000,0x00000000}},
+    {{0x2E739C0A,0x24000100,0x80000000},{0x00000000,0x00000000,0x00000000}}
 };
 
 /* Summary
    Table that maps state indices to the descriptor table indices.
  */
 uint8_t CyFxGpifWavedataPosition[]  = {
-    0,1,1,2,1,3,4,5,4
+    0,1,1,2,1,3,4,5,6,7,4
 };
 
 /* Summary
