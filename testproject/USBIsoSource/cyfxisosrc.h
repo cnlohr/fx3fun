@@ -47,21 +47,14 @@
  * supported is limited by the USB hosts available. The maximum value for this is 16
  * and the minimum (no-burst) is 1. */
 
-#define CY_FX_ISOSRC_DMA_BUF_COUNT      (4)     /* Number of buffers in the DMA channel. (Now applied to GPIF) */
+#define CY_FX_ISOSRC_DMA_BUF_COUNT      (6)     /* Number of buffers in the DMA channel. (Now applied to GPIF) */
 #define CY_FX_ISO_PKTS                  (2)     /* Number of bursts per microframe. */
 #define CY_FX_ISO_BURST                 (16)    /* Number of packets per burst. */
 
 
-
-//Below here is from the fast_gpif2 stuff based on SRAMMASTER
-//#define DMA_IN_BUF_SIZE                         (1024)  /* Size of DMA buffer used for SRAM to USB transfer. */
-//#define CY_FX_SRAM_DMA_BUF_COUNT_P_2_U          (3)     /* Number of DMA buffers used for SRAM to USB transfer. */
-#define CY_FX_PRODUCER_PPORT_SOCKET             (CY_U3P_PIB_SOCKET_0)           /* GPIF Socket 0 is producer. */
-//#define CY_FX_CONSUMER_USB_SOCKET               (CY_U3P_UIB_SOCKET_CONS_1)      /* USB Socket 1 is consumer */
-
-
 #define CY_FX_DEBUG_PRIORITY                    (4)             /* Sets the debug print priority level */
 
+#define DMAMULTI //Needed for continuous operation (Should remove where this is false)
 
 /* Extern definitions for the USB Descriptors */
 extern const uint8_t CyFxUSB20DeviceDscr[];

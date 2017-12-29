@@ -53,8 +53,12 @@
 //#include "cyfxgpif2config.h"
 
 CyU3PThread     isoSrcAppThread;	/* ISO loop application thread structure */
-CyU3PDmaChannel glChHandleIsoSrc;       /* DMA MANUAL_OUT channel handle */
 
+#ifdef DMAMULTI
+CyU3PDmaMultiChannel glChHandleIsoSrc;       /* DMA MANUAL_OUT channel handle */
+#else
+CyU3PDmaChannel glChHandleIsoSrc;       /* DMA MANUAL_OUT channel handle */
+#endif
 
 uint32_t DataOverrunErrors = 0;
 uint32_t dmaevent;
@@ -182,7 +186,6 @@ CyFxIsoSrcApplnStart (
     uint16_t size = 0, index = 0;
     CyU3PEpConfig_t epCfg;
     //CyU3PDmaBuffer_t buf_p;
-    CyU3PDmaChannelConfig_t dmaCfg;
     CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
     CyU3PUSBSpeed_t usbSpeed = CyU3PUsbGetSpeed();
     uint8_t isoPkts = 1;
@@ -241,6 +244,10 @@ CyFxIsoSrcApplnStart (
     /* Only the EP needs to be configured with the correct parameters. The DMA channel can always be prepared
        to allow the greatest bandwidth possible.
      */
+
+#ifndef DMAMULTI
+    CyU3PDmaChannelConfig_t dmaCfg;
+
     dmaCfg.size = ((size + 0x0F) & ~0x0F);
     if (usbSpeed != CY_U3P_FULL_SPEED)
     {
@@ -266,14 +273,41 @@ CyFxIsoSrcApplnStart (
 
     //apiRetStatus = CyU3PDmaChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_MANUAL_OUT, &dmaCfg); XXX CNL
     apiRetStatus = CyU3PDmaChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_AUTO, &dmaCfg);
+#else
+
+
+    CyU3PDmaMultiChannelConfig_t dmaCfg;
+    memset( (void*)&dmaCfg, 0, sizeof( dmaCfg ) );
+    dmaCfg.size            = 16384;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
+     dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
+     dmaCfg.prodSckId[0]   = CY_U3P_PIB_SOCKET_0;
+     dmaCfg.prodSckId[1]   = CY_U3P_PIB_SOCKET_1;
+     dmaCfg.validSckCount  = 2;
+     dmaCfg.consSckId[0]   = CY_FX_EP_CONSUMER_SOCKET;
+     dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Is this right?  Changing it doesn't seem to effect anything.
+     dmaCfg.notification   = CY_U3P_DMA_CB_PROD_EVENT; //CY_U3P_DMA_CB_CONS_EVENT;
+     dmaCfg.cb             = DMACallback ; //This never seems to be called.  Could it need CY_U3P_DMA_TYPE_AUTO_SIGNAL?
+     dmaCfg.prodHeader     = 0;
+     dmaCfg.prodFooter     = 0;
+     dmaCfg.consHeader     = 0;
+     dmaCfg.prodAvailCount = 0;
+
+
+    apiRetStatus = CyU3PDmaMultiChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_AUTO_MANY_TO_ONE, &dmaCfg);
+#endif
 
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
-        CyU3PDebugPrint (4, "CyU3PDmaChannelCreate failed, Error code = %d\n", apiRetStatus);
+        CyU3PDebugPrint (4, "CyU3PDmaMultiChannelCreate failed, Error code = %d\n", apiRetStatus);
         CyFxAppErrorHandler(apiRetStatus);
     }
 
+#ifndef DMAMULTI
     apiRetStatus = CyU3PDmaChannelSetXfer (&glChHandleIsoSrc, 0 ); //0 = unlimited.
+#else
+    apiRetStatus = CyU3PDmaMultiChannelSetXfer (&glChHandleIsoSrc, 0, 0 ); //0 = unlimited.
+#endif
+
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
         CyU3PDebugPrint (4, "CyU3PDmaChannelSetXfer Failed, Error code = %d\n", apiRetStatus);
@@ -323,7 +357,7 @@ CyFxIsoSrcApplnStart (
 
 
 #if 0
-    apiRetStatus = CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
+    apiRetStatus = CyU3PGpifSMStart (STARTRX2, ALPHA_STARTRX2);
     if (apiRetStatus != CY_U3P_SUCCESS)
     {
         CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpifSMStart Failed, Error code = %d\r\n", apiRetStatus);
@@ -359,7 +393,11 @@ CyFxIsoSrcApplnStop (
     glIsApplnActive = CyFalse;
 
     /* Destroy the channels */
+#ifdef DMAMULTI
+    CyU3PDmaMultiChannelDestroy(&glChHandleIsoSrc);
+#else
     CyU3PDmaChannelDestroy (&glChHandleIsoSrc);
+#endif
 
     /* Flush the endpoint memory */
     CyU3PUsbFlushEp (CY_FX_EP_CONSUMER);
@@ -432,10 +470,10 @@ CyFxIsoSrcApplnUSBSetupCB (
         	sendback[0] = 0xaabbccdd;
         	sendback[1] = DataOverrunErrors;
         	sendback[2] = dmaevent;
-            CyU3PUsbSendEP0Data (12, sendback);  //Sends back "hello"
+            CyU3PUsbSendEP0Data (12,(uint8_t*) sendback);  //Sends back "hello"
             if( KeepDataAlive == 0 )
             {
-            	CyU3PGpifSMStart (STARTRX, ALPHA_STARTRX);
+            	CyU3PGpifSMStart (STARTRX2, ALPHA_STARTRX2);
             }
             KeepDataAlive = 12000*2; //~1.9 seconds.
         }
@@ -528,7 +566,11 @@ PibEventCallback (
     {
         switch (CYU3P_GET_PIB_ERROR_TYPE (cbArg))
         {
-            case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
+        case CYU3P_PIB_ERR_THR2_WR_OVERRUN:
+        case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
+//        	CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "!0" );
+        case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
+ //       	CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "!1" );
                 //CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "O");
             	DataOverrunErrors++;            	//XX XXX XXX XXX TODO This happens all the time now probs cause we are debugging???
             	if( KeepDataAlive )
@@ -540,12 +582,6 @@ PibEventCallback (
             			//Stop session.
             		}
             	}
-                break;
-            case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR1_WR_OVERRUN\r\n");
-                break;
-            case CYU3P_PIB_ERR_THR2_WR_OVERRUN:
-                CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR2_WR_OVERRUN\r\n");
                 break;
             case CYU3P_PIB_ERR_THR3_WR_OVERRUN:
                 CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_ERR_THR3_WR_OVERRUN\r\n");
@@ -586,9 +622,9 @@ CyFxIsoSrcApplnInit (void)
     //CyU3PGpioSimpleConfig_t gpioConfig;
     //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-    pibClock.clkDiv      = 3; //~400 MHz / 4.
+    pibClock.clkDiv      = 4; //~400 MHz / 4.
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
-    pibClock.isHalfDiv   = CyTrue; //Adds 0.5 to divisor
+    pibClock.isHalfDiv   = CyFalse; //Adds 0.5 to divisor
     pibClock.isDllEnable = CyTrue;	//For async or master-mode
     apiRetStatus = CyU3PPibInit (CyTrue, &pibClock);
     if (apiRetStatus != CY_U3P_SUCCESS)
