@@ -5,8 +5,9 @@
 #include "usb100.h"
 #include <windows.h>
 
-//Portions of this code are based on CyAPI's internal codebase.
-//  https://raw.githubusercontent.com/Cornell-RPAL/occam/master/indigosdk-2.0.15/third/cyusb/CyAPI.cpp
+//Portions of this code are based on CyAPI's internal codebase. (Specifically in enumeration)
+// I intend to rewrite that soon.  Also, I intend to clean up support for streaming isochronous out as well.
+// Other people can feel free to contribute!!!
 
 static GUID DrvGuid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
 
