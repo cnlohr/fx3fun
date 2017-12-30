@@ -1,6 +1,12 @@
 # fx3fun
 Charles' playground for the Cypress FX3.  Specifically I'm interested in the CYUSB3011-BZXC/CYUSB3012. 
 
+I'm trying to turn it into a logic analyzer.  I've been playing with a kit, specifically http://www.cypress.com/documentation/development-kitsboards/cyusb3kit-003-ez-usb-fx3-superspeed-explorer-kit - and I've found it to be incredibly powerful.  This project is split up into two-ish components.
+
+(1) The Firmware: It is firmware that turns the GPIF-II bus into a 16-bit, 100 MHz sampling device.  Synchronously receiving data and storing it in a buffer to stream back to a computer.  My firmware sets up the isochronous pipes in such a way to transfer data back at about 250 MB/s.  Also, control messages are really easy to send, so this could also be a really useful tool for programming chips, too!
+
+(2) CyprIO (pronounced saɪˈpirˈēˈō): My C-library for use in Windows (and hopefully Linux soon) that lets you talk to my firmware on the cpress chip.  Originally Cypress offered a CyAPI that let you use C++ to talk to their parts, but in digging into it, I found that it was extremely overbearing, and just not a good fit for many of the projects I wanted.  Speicifically, more library-style operations, i.e. introducing into sigrok, etc.  So, I re-wrote it, in C.  Also, a side benefit of this is you can compile it and use it in Windows with only TCC (a 6MB package).  All header files needed to compile are included.  No Visual Studio needed or anything.
+
 
 ## Project Log
 
