@@ -214,3 +214,11 @@ Ok, video didn't go well.
 Post reply to https://community.cypress.com/thread/32169
 
 Dinked around for about an hour, got nowhere with the bandwidth, though I did notice I can overclock my bus to 8/7ths of 100 MHz :-D
+
+Gave up around 8 AM...
+
+12/29 2:00 PM Started again.  Had to use a watermark or fifo-space-left operation with extra states, but it worked!  (2 hours more)
+
+Started again at 10:45 PM.  How hard is it to flash custom firmware?  Or maybe I should cleanup Cyprio?
+
+They provide "c_sharp/controlcenter/Form1.cs" which is 3,000 lines long.  :(.

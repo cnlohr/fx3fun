@@ -1,5 +1,5 @@
 #include <string.h>
-#include <CyprIO.h>
+#include <libcyprio.h>
 #include <stdio.h>
 
 #define DEBUGINFO(x...) fprintf( stderr, x );
@@ -75,7 +75,7 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
 		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
 		buffers[i] = (uint8_t*)malloc( buffersize );
-		UCHAR * pXmitBuf = xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );		
+		uint8_t * pXmitBuf = xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );		
 		pTransfers[i] = (PSINGLE_TRANSFER)pXmitBuf;
 		ZeroMemory (pXmitBuf, iXmitBufSize);
 		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
@@ -184,6 +184,7 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
     //Open a handle to the plug and play dev node.
     //SetupDiGetClassDevs() returns a device information set that contains info on all
     // installed devices of a specified class which are present.
+	static GUID DrvGuid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
     HDEVINFO hwDeviceInfo = SetupDiGetClassDevsA ( (LPGUID) &DrvGuid,
         NULL,
         NULL,
@@ -226,10 +227,10 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 			
 			//Allocate a function class device data structure to receive the goods about this
 			// particular device.
-			ULONG requiredLength = 0;
+			uint32_t requiredLength = 0;
 			SetupDiGetDeviceInterfaceDetailA ( hwDeviceInfo, &devInterfaceData, NULL, 0, &requiredLength, NULL);
 
-			ULONG predictedLength = requiredLength;
+			uint32_t predictedLength = requiredLength;
 
 			SP_DEVICE_INTERFACE_DETAIL_DATA_A * functionClassDeviceData = (PSP_DEVICE_INTERFACE_DETAIL_DATA_A) malloc (predictedLength);
 			functionClassDeviceData->cbSize =  sizeof (SP_DEVICE_INTERFACE_DETAIL_DATA_A);
@@ -308,7 +309,7 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 }
 
 
-int CyprIOControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, uint32_t len)
+int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len)
 {
     if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
     BOOL bDioRetVal = DeviceIoControl (ths->hDevice, cmd, XferBuf, len, XferBuf, len, &ths->BytesXferedLastControl, NULL);
@@ -377,7 +378,7 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 }
 
 
-int CyprIOGetString( struct CyprIO * ths, wchar_t *str, UCHAR sIndex)
+int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex)
 {
 	uint8_t buffer[USB_STRING_MAXLEN+2];
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8) | sIndex, ths->StrLangID, buffer, sizeof( buffer ), 1000 );
@@ -386,8 +387,8 @@ int CyprIOGetString( struct CyprIO * ths, wchar_t *str, UCHAR sIndex)
 		return ret;
 	}
 	
-	UCHAR bytes = buffer[0];
-	UCHAR signature = buffer[1];
+	uint8_t bytes = buffer[0];
+	uint8_t signature = buffer[1];
 	
 	if( ret>2  && signature == 0x03 )
 	{
@@ -445,7 +446,7 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	HANDLE hd = ths->hDevice;
 	char buf[256];
 	int bRetVal;
-    ULONG length;
+    uint32_t length;
 	USB_COMMON_DESCRIPTOR cmnDescriptor;
 
 	if( !hd )
@@ -455,15 +456,13 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	}
 	
     //USB_DEVICE_DESCRIPTOR devDescriptor;
-printf( "ENUM 1" );
+
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_DEVICE_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&ths->USBDeviceDescriptor, sizeof(USB_DEVICE_DESCRIPTOR), 2000 );
     if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
 	//printf( "Got USB Descriptor for: %04x:%04x\n", ths->USBDeviceDescriptor.idVendor, ths->USBDeviceDescriptor.idProduct );
-printf( "ENUM 2" );
-
+	
 	ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&cmnDescriptor, sizeof(USB_COMMON_DESCRIPTOR), 2000 );
     if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
-printf( "ENUM 3" );
 
 	int LangIDs = (cmnDescriptor.bLength - 2 ) / 2;
 	ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)buf, sizeof( buf ), 2000 );
@@ -474,7 +473,7 @@ printf( "ENUM 3" );
 	ths->StrLangID =(LangIDs) ? IDs[0].bString[0] : 0;
 
 	for (int i=0; i<LangIDs; i++) {
-		USHORT id = IDs[i].bString[0];
+		uint16_t id = IDs[i].bString[0];
 		if (id == 0x0409) ths->StrLangID = id;
 	}
 
@@ -518,7 +517,7 @@ printf( "ENUM 3" );
 	//Also bool bRetVal = IoControl(IOCTL_ADAPT_GET_USBDI_VERSION, (PUCHAR) &USBDIVersion, sizeof(ULONG));
 
 	
-	ULONG speed = 0;
+	uint32_t speed = 0;
 	int bHighSpeed = 0;
 	int bSuperSpeed = 0;
 	CyprIOControl( ths, IOCTL_ADAPT_GET_DEVICE_SPEED, (PUCHAR)&speed, sizeof(speed));

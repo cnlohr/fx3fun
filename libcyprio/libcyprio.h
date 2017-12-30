@@ -1,15 +1,17 @@
 #ifndef CYPRIO_H
 #define CYPRIO_H
 
-#include "devaux_header.h"
-#include "usb100.h"
-#include <windows.h>
+#include <stdint.h>
+#include "cyprio_aux.h"
+#include "cyprio_usb100.h"
 
 //Portions of this code are based on CyAPI's internal codebase. (Specifically in enumeration)
 // I intend to rewrite that soon.  Also, I intend to clean up support for streaming isochronous out as well.
 // Other people can feel free to contribute!!!
 
-static GUID DrvGuid = {0xae18aa60, 0x7f6a, 0x11d4, 0x97, 0xdd, 0x0, 0x1, 0x2, 0x29, 0xb9, 0x59};
+#ifndef BOOL
+#define BOOL char
+#endif
 
 #define USB_STRING_MAXLEN 256
 #define MAX_INTERFACES 8
@@ -27,35 +29,28 @@ struct CyprIOEndpoint	//Mimicing CCyUSBEndPoint
 	int is_superspeed;
 	
     /* The fields of an EndPoint Descriptor */
-    UCHAR   DscLen;
-    UCHAR   DscType;
-    UCHAR   Address;
-    UCHAR   Attributes;
-    USHORT  MaxPktSize;
-    USHORT  PktsPerFrame;
-    UCHAR   Interval;
+    uint8_t   DscLen;
+    uint8_t   DscType;
+    uint8_t   Address;
+    uint8_t   Attributes;
+    uint16_t  MaxPktSize;
+    uint16_t  PktsPerFrame;
+    uint8_t   Interval;
     /* This are the fields for Super speed endpoint */
-    UCHAR   ssdscLen;
-    UCHAR   ssdscType;
-    UCHAR   ssmaxburst;     /* Maximum number of packets endpoint can send in one burst */
-    UCHAR   ssbmAttribute;  /* store endpoint attribute like for bulk it will be number of streams */
-    USHORT  ssbytesperinterval;
+    uint8_t   ssdscLen;
+    uint8_t   ssdscType;
+    uint8_t   ssmaxburst;     /* Maximum number of packets endpoint can send in one burst */
+    uint8_t   ssbmAttribute;  /* store endpoint attribute like for bulk it will be number of streams */
+    uint16_t  ssbytesperinterval;
 
-    /* Other fields */
-//    ULONG   TimeOut;
-//    ULONG   UsbdStatus;	//Unused
-//    ULONG   NtStatus;	//Unused
-
-//    DWORD   bytesWritten;
-//    DWORD   LastError;
     BOOL    bIn;
 
     XFER_MODE_TYPE  XferMode;
 };
 
 struct CyprCyIsoPktInfo {
-    LONG Status;
-    LONG Length;
+    int32_t Status;
+    int32_t Length;
 };
 
 
@@ -71,7 +66,7 @@ struct CyprIO
 	wchar_t SerialNumber[USB_STRING_MAXLEN];
 	PUSB_BOS_DESCRIPTOR pUsbBosDescriptor;
 	char FriendlyName[USB_STRING_MAXLEN];
-    UCHAR       USBAddress;
+    uint8_t       USBAddress;
 	PUSB_CONFIGURATION_DESCRIPTOR   USBConfigDescriptors[2];	//Must check and free.
 	PUSB_INTERFACE_DESCRIPTOR		USBIfaceDescriptors[MAX_INTERFACES];
 	int								USBIfaceAltSettings[MAX_INTERFACES];
@@ -83,8 +78,6 @@ struct CyprIO
 };
 
 
-
-int CyprDataXfer( struct CyprIOEndpoint * ep, uint8_t * buf, uint32_t * bufLen, struct CyprCyIsoPktInfo* pktInfos);
 int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 //Setup
@@ -93,13 +86,13 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths );
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface );
 
 //Raw control messages, these ave unusual specific uses.
-int CyprIOControl(struct CyprIO * ths, ULONG cmd, uint8_t * XferBuf, ULONG len);
+int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len);
 
 //Sort of utiltiy that binds the above 2. Mimics libusb_control_transfer from libusb, to ease portability.  Only for IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER.  Other messages must be done using the other mechanisms.  This however, can only make regular control message calls.
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
 
-int CyprIOGetString( struct CyprIO * ths, wchar_t *str, UCHAR sIndex);
+int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex);
 
 
 #endif

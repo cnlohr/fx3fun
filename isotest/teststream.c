@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
-#include "CyprIO.h"
+#include <libcyprio.h>
 #include "os_generic.h"
 
 double Last;
