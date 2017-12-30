@@ -1,6 +1,16 @@
+/*
+	Cypress FX3 library for easier C access directly to FX3 boards (mostly via CyUSB3.sys)
+	
+	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
+	
+	This file is currently Windows only.  I expect to have parallel functionality in Linux soon.
+*/
+
+
 #include <string.h>
 #include <libcyprio.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define DEBUGINFO(x...) fprintf( stderr, x );
 
@@ -170,13 +180,14 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 
 
 
-
-
-int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
+int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 {
 	int Devices = 0;
 	
 	ZeroMemory( ths, sizeof( *ths) );
+	
+	char matching[1024];
+	sprintf( matching, "\\\\?\\usb#vid_%04x&pid_%04x#", vid, pid );
 
     //SP_DEVINFO_DATA devInfoData;
     SP_DEVICE_INTERFACE_DATA  devInterfaceData;
@@ -224,10 +235,10 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 				iDevice++;
 				continue;
 			}
-			
+
 			//Allocate a function class device data structure to receive the goods about this
 			// particular device.
-			uint32_t requiredLength = 0;
+			DWORD requiredLength = 0;
 			SetupDiGetDeviceInterfaceDetailA ( hwDeviceInfo, &devInterfaceData, NULL, 0, &requiredLength, NULL);
 
 			uint32_t predictedLength = requiredLength;
@@ -261,6 +272,13 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 			
 			memcpy (DevPath, functionClassDeviceData->DevicePath, pathLen);
 			DevPath[pathLen] = 0;
+			
+			if( vid == 0 && pid == 0 && index == 0 )
+			{
+				printf( "Got Dev: %s\n", DevPath );
+				iDevice++;
+				continue;
+			}
 			
 			if( index < 0 || matching == 0 )
 			{
@@ -312,7 +330,9 @@ int CyprIOConnect( struct CyprIO * ths, int index, const char * matching )
 int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len)
 {
     if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
-    BOOL bDioRetVal = DeviceIoControl (ths->hDevice, cmd, XferBuf, len, XferBuf, len, &ths->BytesXferedLastControl, NULL);
+	DWORD xfer;
+    BOOL bDioRetVal = DeviceIoControl(ths->hDevice, cmd, XferBuf, len, XferBuf, len, &xfer, NULL);
+	ths->BytesXferedLastControl = xfer;
     if(!bDioRetVal) { ths->LastError = GetLastError(); ths->BytesXferedLastControl = -1; }
 	return !bDioRetVal || (ths->BytesXferedLastControl != len);
 }
@@ -364,7 +384,7 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 	{
 		//Direction Host to Device (out)
 		memcpy( buffer + sizeof( SINGLE_TRANSFER ), data, wLength );
-		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, 0, 0, 0, NULL);
+		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, buffer, buflen, &received, NULL);
 		if( !ret )
 		{
 			ths->BytesXferedLastControl = -1;
@@ -373,7 +393,7 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 		}
 		ths->BytesXferedLastControl = 0;
 		free( buffer );
-		return wLength-sizeof( SINGLE_TRANSFER );
+		return wLength;
 	}
 }
 
@@ -428,7 +448,7 @@ static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 	
 	uint8_t buffer[1024];
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_CONFIGURATION_DESCRIPTOR_TYPE<<8) | descIndex, 0, buffer, sizeof( buffer ), 1000 );
-	printf( "RET: %d\n", ret );
+	//printf( "RET: %d\n", ret );
 	if( ret <= 0 )
 	{
 		return ret;
@@ -485,17 +505,18 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	printf( ":" ); PrintWString( ths->SerialNumber );
 	printf( "\n" ); 
 	
-	
-	if ((ths->USBDeviceDescriptor.bcdUSB & BCDUSBJJMASK) != USB30MAJORVER)
+	ths->is_usb_3 = (ths->USBDeviceDescriptor.bcdUSB & BCDUSBJJMASK) == USB30MAJORVER;
+	if ( !ths->is_usb_3 )
 	{
-		DEBUGINFO( "Error: BcdUSB indicates this is not a USB 3.0 compliant device.  Not supported with this client.\n" );
-		return 1;
+		DEBUGINFO( "Warning: This device is not listed as USB 3.0\n" );
 	}
-	
-	if(CyprIOGetInteralBOSDescriptor( ths ) )
+	else
 	{
-		DEBUGINFO( "Error: Failed to get Internal BOS Descriptor\n" );
-		return 1;
+		if(CyprIOGetInteralBOSDescriptor( ths ) )
+		{
+			DEBUGINFO( "Error: Failed to get Internal BOS Descriptor\n" );
+			return 1;
+		}
 	}
 	
 	//Theoretically, we should be processing the BOS descriptor here...  I don't know if we acutally need to.
@@ -520,10 +541,11 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	uint32_t speed = 0;
 	int bHighSpeed = 0;
 	int bSuperSpeed = 0;
+
 	CyprIOControl( ths, IOCTL_ADAPT_GET_DEVICE_SPEED, (PUCHAR)&speed, sizeof(speed));
 	bHighSpeed = (speed == DEVICE_SPEED_HIGH);
 	bSuperSpeed = (speed == DEVICE_SPEED_SUPER);
-	if( !bSuperSpeed )
+	if( ths->is_usb_3 && !bSuperSpeed )
 	{
 		DEBUGINFO( "Error: Super speed bit not set!\n" );
 		return -3;
@@ -531,7 +553,11 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 
 	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
 	int i;
-	printf( "Found %d configs\n", configs );
+	if( configs > MAX_CONFIG_DESCRIPTORS )
+	{
+		fprintf( stderr, "Warning: Too many config desriptors found (%d > %d)\n", configs, MAX_CONFIG_DESCRIPTORS );
+		configs = MAX_CONFIG_DESCRIPTORS;
+	}
 	for ( i=0; i < configs; i++)
 	{
 		if( CyprIOGetCfgDescriptor( ths, i ) )
@@ -539,14 +565,14 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 			DEBUGINFO( "Could not get config %d\n", i );
 			return -1;
 		}
-		printf( "Got Config (length %d): (Value: %d)\n", ths->USBConfigDescriptors[i]->wTotalLength, ths->USBConfigDescriptors[i]->bConfigurationValue );
+		//printf( "Got Config (length %d): (Value: %d)\n", ths->USBConfigDescriptors[i]->wTotalLength, ths->USBConfigDescriptors[i]->bConfigurationValue );
 		int k;
 		uint8_t * p = (uint8_t*)ths->USBConfigDescriptors[i];
-		for( k = 0; k < ths->USBConfigDescriptors[i]->wTotalLength; k++)
-		{
-			printf( " %02x", p[k] );
-		}
-		printf ("\n" );
+//		for( k = 0; k < ths->USBConfigDescriptors[i]->wTotalLength; k++)
+//		{
+//			printf( " %02x", p[k] );
+//		}
+//		printf ("\n" );
 	}
 	printf( "Selected %d\n", i );
 	
@@ -671,9 +697,26 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	}
 	//Now, we write code that mimics SetConfig(...)??
 	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
-	CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, &use_iface, 1L);
+	CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, (uint8_t*)&use_iface, 1L);
 	
 	//Isn't there some sort of "claim" operation that needs to happen?
 
 	return 0;
+}
+
+
+void CyprIODestroy( struct CyprIO * ths )
+{
+	if( !ths ) return;
+	if( !ths->hDevice ) return;
+	CloseHandle( ths->hDevice );
+	ths->hDevice = 0;
+	if( ths->pUsbBosDescriptor ) free( ths->pUsbBosDescriptor );
+	ths->pUsbBosDescriptor = 0;
+	int i;
+	for( i = 0; i < MAX_CONFIG_DESCRIPTORS; i++ )
+	{
+		if( ths->USBConfigDescriptors[i] ) free( ths->USBConfigDescriptors[i] );
+		ths->USBConfigDescriptors[i] = 0;
+	}
 }

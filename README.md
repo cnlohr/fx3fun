@@ -59,6 +59,7 @@ BACK ON TRACK
 
 Go get this thing...  (I may not use it?)
 
+VVV Note added later... I don't think the thing here is useful at all.
 ```
 cd ~/Cypress
 git clone https://github.com/nickdademo/cyfwstorprog_linux
@@ -222,3 +223,22 @@ Gave up around 8 AM...
 Started again at 10:45 PM.  How hard is it to flash custom firmware?  Or maybe I should cleanup Cyprio?
 
 They provide "c_sharp/controlcenter/Form1.cs" which is 3,000 lines long.  :(.
+
+(only spent 15 minutes this time)
+
+12/30 Midnight: Starting again.
+
+Just found out all of the cypress stuff goes through CyUSB3.sys. http://www.cypress.com/file/145261/download
+Looks like it all gets piped through a kernel mode driver I got, so it turns out it does take a driver :( -- but apparently it's an easy-for-windows-to-deal-with driver!!!
+
+Spent about 2 hours looking at the hex of the cypress images and a USBPcap dump of a successful flash of the device using the Cypress tool.  That should have taken way less time.
+
+Now, to figure out why my messages I think are CONTROL OUT messages are turning into CONTROL IN messages >.<
+
+Got it to boot!!! (RAM only, no writing to flash!)
+
+NEXT: How do we flash to the I2C EEPROM? (3:00 AM)
+
+Apparently, that's easy.  First, RAM it to the Flasher firmware.  Then call flash commands. (0x40/0xBA/(Windex/Wvalue) of the raw binary image.  No interpretation needed.
+
+AND NOW IT WORKS IWTH I2C EEPROM (3:50 AM)

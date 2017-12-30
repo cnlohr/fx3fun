@@ -34,6 +34,16 @@
 		PSP_DEVINFO_DATA                 DeviceInfoData
 	);
 
+	BOOL SetupDiEnumDeviceInterfaces(
+		HDEVINFO                  DeviceInfoSet,
+		PSP_DEVINFO_DATA          DeviceInfoData,
+		const GUID                      *InterfaceClassGuid,
+		DWORD                     MemberIndex,
+		PSP_DEVICE_INTERFACE_DATA DeviceInterfaceData );
+		
+	BOOL SetupDiDestroyDeviceInfoList( HDEVINFO DeviceInfoSet	);
+
+
 	#define DIGCF_PRESENT	0x00000002
 	#define DIGCF_INTERFACEDEVICE	0x00000010
 	#define DIGCF_DEVICEINTERFACE	0x00000010

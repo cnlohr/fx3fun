@@ -1,3 +1,11 @@
+/*
+	Cypress FX3 library for easier C access directly to FX3 boards (mostly via CyUSB3.sys)
+	
+	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
+	
+	This file is currently Windows only.  I expect to have parallel functionality in Linux soon.
+*/
+
 #ifndef CYPRIO_H
 #define CYPRIO_H
 
@@ -16,6 +24,7 @@
 #define USB_STRING_MAXLEN 256
 #define MAX_INTERFACES 8
 #define MAX_ENDPOINTS 8
+#define MAX_CONFIG_DESCRIPTORS 2
 
 struct CyprIO;
 
@@ -67,7 +76,7 @@ struct CyprIO
 	PUSB_BOS_DESCRIPTOR pUsbBosDescriptor;
 	char FriendlyName[USB_STRING_MAXLEN];
     uint8_t       USBAddress;
-	PUSB_CONFIGURATION_DESCRIPTOR   USBConfigDescriptors[2];	//Must check and free.
+	PUSB_CONFIGURATION_DESCRIPTOR   USBConfigDescriptors[MAX_CONFIG_DESCRIPTORS];	//Must check and free.
 	PUSB_INTERFACE_DESCRIPTOR		USBIfaceDescriptors[MAX_INTERFACES];
 	int								USBIfaceAltSettings[MAX_INTERFACES];
 	struct CyprIOEndpoint			CypIOEndpoints[MAX_ENDPOINTS];
@@ -75,15 +84,18 @@ struct CyprIO
 	
 	int Interfaces, AltInterfaces;
 	int SelInterface;
+	
+	uint8_t is_usb_3;
 };
 
 
 int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 //Setup
-int CyprIOConnect( struct CyprIO * ths, int index, const char * matching );
+int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid);
 int CyprIOGetDevDescriptorInformation( struct CyprIO * ths );
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface );
+void CyprIODestroy( struct CyprIO * ths );
 
 //Raw control messages, these ave unusual specific uses.
 int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len);
@@ -94,5 +106,12 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 
 int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex);
 
+
+
+///////////////////////////////////////////////////////////////////////
+// CyprIO Utilities
+
+//Tries to see if it can find a bootloader device, then flash the specified firmware.
+int CyprIOBootloaderImage( const char * fwfile );
 
 #endif
