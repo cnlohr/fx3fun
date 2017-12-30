@@ -1,3 +1,9 @@
+/*
+	Tool to test Cypress FX3 isochronous transfers using the stream test firmware
+	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
+	Tested on Windows, working full functionality 12/30/2017
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
@@ -12,7 +18,6 @@ struct CyprIO eps;
 void TickCypr()
 {
 	char buf[64];
-	memcpy( buf, "hello", 5 );
 	int e = CyprIOControlTransfer( &eps, 0xc0, 0xaa, 0x0102, 0x0304, buf, 50, 5000 );
 	printf( "GOT: %d:", e );
 	int i;
@@ -44,7 +49,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 int main()
 {
 	printf( "Test streamer\n" );
-	int r = CyprIOConnect( &eps, 0, "\\\\?\\usb#vid_04b4&pid_00f1#" ); //5&c94d647&0&20#{ae18aa60-7f6a-11d4-97dd-00010229b959}" );
+	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{
 		fprintf( stderr, "Error: Could not connect to USB device\n" );

@@ -20,14 +20,12 @@ int main( int argc, char ** argv )
 	
 	for( i = 1; i < argc; i++ )
 	{
-		printf( "%s\n", argv[i] );
 		const char * proc = argv[i];
 		if( *proc == '-' )
 		{
 			do
 			{
 				proc++;
-				printf( "%s\n", proc );
 				if( !*proc ) continue;
 				if( *proc == 'i' )
 				{

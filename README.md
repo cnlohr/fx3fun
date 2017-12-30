@@ -241,4 +241,4 @@ NEXT: How do we flash to the I2C EEPROM? (3:00 AM)
 
 Apparently, that's easy.  First, RAM it to the Flasher firmware.  Then call flash commands. (0x40/0xBA/(Windex/Wvalue) of the raw binary image.  No interpretation needed.
 
-AND NOW IT WORKS IWTH I2C EEPROM (3:50 AM)
+AND NOW IT WORKS WITH I2C EEPROM (3:50 AM)
