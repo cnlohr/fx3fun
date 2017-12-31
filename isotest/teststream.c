@@ -41,7 +41,7 @@ void * TickThread( void * v )
 	while(1)
 	{
 		TickCypr();
-		sleep(1);
+		OGSleep(1);
 	}
 }
 
@@ -138,7 +138,8 @@ int main()
 #else
 		
 	Last = OGGetAbsoluteTime();
-	TickCypr(); //Get it started.
+	
+	OGCreateThread( TickThread, 0 );
 #if defined( WINDOWS ) || defined( WIN32)
 	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
 #else

@@ -462,6 +462,16 @@ out:
 
 
 #if defined( WIN32 ) || defined( WINDOWS) 
+int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len)
+{
+    if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
+	DWORD xfer;
+    BOOL bDioRetVal = DeviceIoControl(ths->hDevice, cmd, XferBuf, len, XferBuf, len, &xfer, NULL);
+	ths->BytesXferedLastControl = xfer;
+    if(!bDioRetVal) { ths->LastError = GetLastError(); ths->BytesXferedLastControl = -1; }
+	return !bDioRetVal || (ths->BytesXferedLastControl != len);
+}
+
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout )
 {
 	DWORD received = 0;
@@ -772,9 +782,36 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 		} 
 	}
 
+#if defined( WIN32 ) || defined( WINDOWS )
+	uint32_t speed = 0;
+	int bHighSpeed = 0;
+	int bSuperSpeed = 0;
+
+	CyprIOControl( ths, IOCTL_ADAPT_GET_DEVICE_SPEED, (PUCHAR)&speed, sizeof(speed));
+	bHighSpeed = (speed == DEVICE_SPEED_HIGH);
+	bSuperSpeed = (speed == DEVICE_SPEED_SUPER);
+	if( ths->is_usb_3 && !bSuperSpeed )
+	{
+		DEBUGINFO( "Error: Super speed bit not set!\n" );
+		return -3;
+	}
+#else
+	//If need be, use the libusb functions to the same.
+#endif
+	
 	CyprIOControlTransfer( ths, 0x00, USB_REQUEST_SET_INTERFACE, use_iface, 0, 0, 0, 1000 );
 
 #if defined(WINDOWS) || defined( WIN32 )
+
+    UCHAR alt;
+	if (CyprIOControl(ths,IOCTL_ADAPT_GET_ALT_INTERFACE_SETTING, &alt, 1))
+	{
+		DEBUGINFO( "Error: can't get alt interface setting\n" );
+	}
+	//Now, we write code that mimics SetConfig(...)??
+	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
+	CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, (uint8_t*)&use_iface, 1L);
+	
 #else
 	int rc;
 	rc = libusb_claim_interface( ths->hDevice, 0);
@@ -784,8 +821,6 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	}
 	libusb_set_interface_alt_setting( ths->hDevice, 0, use_iface );
 #endif
-
-
 
 	return 0;
 }
