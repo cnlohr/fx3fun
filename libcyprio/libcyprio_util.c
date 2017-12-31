@@ -43,9 +43,9 @@ int CyprIOBootloaderImage( const char * fwfile )
 	uint8_t comp[2048];
 
 	int k = CyprIOControlTransfer( &eps, 0xc0, 0xa0, 0, 0, comp, 1, 5000 );
-	if( k != 1 || comp[0] != 0x24 )
+	if( k != 1 )
 	{
-		fprintf( stderr, "Error: Control message returned confusing result.\n" );
+		fprintf( stderr, "Error: Control message returned confusing result (%d / %02x)\n", k, comp[0] );
 		goto error;
 	}
 	
