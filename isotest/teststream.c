@@ -6,19 +6,26 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
 #include <libcyprio.h>
 #include "os_generic.h"
+
+#if defined(WINDOWS) || defined( WIN32 )
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 double Last;
 double bytes;
 
 struct CyprIO eps;
 
+
 void TickCypr()
 {
 	char buf[64];
-	int e = CyprIOControlTransfer( &eps, 0xc0, 0xaa, 0x0102, 0x0304, buf, 50, 5000 );
+	printf( "Control\n" );
+	int e = CyprIOControlTransfer( &eps, 0xc0, 0xaa, 0x0102, 0x0304, buf, 50, 10 );
 	printf( "GOT: %d:", e );
 	int i;
 	for( i = 0; i < e; i++ )
@@ -26,6 +33,16 @@ void TickCypr()
 		printf( "%02x ", (uint8_t)buf[i] );
 	}
 	printf( "\n" );
+}
+
+
+void * TickThread( void * v )
+{
+	while(1)
+	{
+		TickCypr();
+		sleep(1);
+	}
 }
 
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
@@ -40,7 +57,6 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		Last++;
 		bytes = 0;
 
-		TickCypr();		
 	}
 	return 0;
 }
@@ -123,7 +139,11 @@ int main()
 		
 	Last = OGGetAbsoluteTime();
 	TickCypr(); //Get it started.
-	CyprIODoCircularDataXfer( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
+#if defined( WINDOWS ) || defined( WIN32)
+	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
+#else
+	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 16,  callback, 0 );
+#endif
 	printf( "Done with circular data xfer\n" );
 
 #endif	

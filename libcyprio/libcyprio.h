@@ -2,9 +2,7 @@
 	Cypress FX3 library for easier C access directly to FX3 boards (mostly via CyUSB3.sys)
 	
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
-	
-	This file is currently Windows only.  I expect to have parallel functionality in Linux soon.
-*/
+	*/
 
 #ifndef CYPRIO_H
 #define CYPRIO_H
@@ -83,12 +81,11 @@ struct CyprIO
 #if defined(WINDOWS) || defined( WIN32 )
 	HANDLE hDevice;
 #else
-	#error ... Add libusb handles here.
+	struct libusb_device_handle * hDevice;
 #endif
 };
 
 
-int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 //Setup
 int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid);
@@ -99,6 +96,9 @@ void CyprIODestroy( struct CyprIO * ths );
 //Sort of utiltiy that binds the above 2. Mimics libusb_control_transfer from libusb, to ease portability.  Only for IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER.  Other messages must be done using the other mechanisms.  This however, can only make regular control message calls.
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
+
+//Set up a high performance asynchronous transfer in from an ISO endpoint.
+int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 int CyprIOGetString( struct CyprIO * ths, WCHAR *str, uint8_t sIndex);
 

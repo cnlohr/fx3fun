@@ -253,3 +253,13 @@ NEXT: How do we flash to the I2C EEPROM? (3:00 AM)
 Apparently, that's easy.  First, RAM it to the Flasher firmware.  Then call flash commands. (0x40/0xBA/(Windex/Wvalue) of the raw binary image.  No interpretation needed.
 
 AND NOW IT WORKS WITH I2C EEPROM (3:50 AM)
+
+Dec 30, starting around 8 PM... Porting to Linux.
+
+Just mostly #define out the stuff that is flagrantly Windows.
+
+Booted back into Windows to make sure it was still working.  It wasn't.  Also, while in Windows, ditched any of the CyUSB3 stuff in critical path.  It could be replaced by generic calls to the control transfer stuff.
+
+WOOHH SUCCESSFULLY FLASHING IN LINUX!!!  (11:08 PM!)
+
+
