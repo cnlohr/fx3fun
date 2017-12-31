@@ -31,8 +31,6 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 	ep->Interval   = epd->bInterval;
 	ep->bIn        = ((ep->Address & 0x80) == 0x80);
 
-    ep->XferMode  = XMODE_DIRECT;  // Normally, use Direct xfers
-
 	if( SSEndPtDescriptor )
 	{
 		ep->is_superspeed = 1;
@@ -61,7 +59,7 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 }
 
 
-
+#if defined( WINDOWS ) || defined( WIN32 )
 
 int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
 {
@@ -162,23 +160,23 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 }
 
 
+#else
+
+
+int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
+{
+	fprintf( stderr, "Error: CyprIODoCircularDataXfer not defined for Windows.\n" );
+	return -1;
+}
+
+#endif
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+#if defined( WINDOWS ) || defined( WIN32 )
 
 int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 {
@@ -325,6 +323,16 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 
     return -1;
 }
+#else
+
+
+int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
+{
+	fprintf( stderr, "not written yet\n" );
+	return -1;
+}
+
+#endif
 
 
 int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len)

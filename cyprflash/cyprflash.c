@@ -7,7 +7,15 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+//For 'sleep' / 'usleep'
+#if defined( WIN32 ) || defined( WINDOWS )
 #include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <libcyprio.h>
 
 

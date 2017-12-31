@@ -28,8 +28,6 @@
 
 struct CyprIO;
 
-typedef enum {XMODE_BUFFERED, XMODE_DIRECT } XFER_MODE_TYPE; //XXX TODO: Make this go away.
-
 struct CyprIOEndpoint	//Mimicing CCyUSBEndPoint
 {
 	struct CyprIO * parent;
@@ -53,8 +51,6 @@ struct CyprIOEndpoint	//Mimicing CCyUSBEndPoint
     uint16_t  ssbytesperinterval;
 
     BOOL    bIn;
-
-    XFER_MODE_TYPE  XferMode;
 };
 
 struct CyprCyIsoPktInfo {
@@ -65,14 +61,13 @@ struct CyprCyIsoPktInfo {
 
 struct CyprIO
 {
-	HANDLE hDevice;
 	USB_DEVICE_DESCRIPTOR USBDeviceDescriptor;
 	int BytesXferedLastControl;
 	int LastError;
 	int StrLangID;
-	wchar_t Manufacturer[USB_STRING_MAXLEN];
-	wchar_t Product[USB_STRING_MAXLEN];
-	wchar_t SerialNumber[USB_STRING_MAXLEN];
+	WCHAR Manufacturer[USB_STRING_MAXLEN];
+	WCHAR Product[USB_STRING_MAXLEN];
+	WCHAR SerialNumber[USB_STRING_MAXLEN];
 	PUSB_BOS_DESCRIPTOR pUsbBosDescriptor;
 	char FriendlyName[USB_STRING_MAXLEN];
     uint8_t       USBAddress;
@@ -86,6 +81,12 @@ struct CyprIO
 	int SelInterface;
 	
 	uint8_t is_usb_3;
+
+#if defined(WINDOWS) || defined( WIN32 )
+	HANDLE hDevice;
+#else
+
+#endif
 };
 
 
@@ -104,7 +105,7 @@ int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
 
-int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex);
+int CyprIOGetString( struct CyprIO * ths, WCHAR *str, uint8_t sIndex);
 
 
 
