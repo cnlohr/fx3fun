@@ -262,4 +262,6 @@ Booted back into Windows to make sure it was still working.  It wasn't.  Also, w
 
 WOOHH SUCCESSFULLY FLASHING IN LINUX!!!  (11:08 PM!)
 
+Woah this isochronous thing was kicking my butt.  12:54 AM, Dec 31, 2017.  Iso in linux looks weird, but seems to be working.  I'm worried it may be dropping packets.
+
 
