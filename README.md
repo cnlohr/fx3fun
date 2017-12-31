@@ -3,9 +3,11 @@ Charles' playground for the Cypress FX3.  Specifically I'm interested in the CYU
 
 I'm trying to turn it into a logic analyzer.  I've been playing with a kit, specifically the $45 http://www.cypress.com/documentation/development-kitsboards/cyusb3kit-003-ez-usb-fx3-superspeed-explorer-kit - and I've found it to be incredibly powerful.  This project is split up into a few components.
 
-(1) The Firmware: It is firmware that turns the GPIF-II bus into a 16-bit, 100 MHz sampling device.  Synchronously receiving data and storing it in a buffer to stream back to a computer.  My firmware sets up the isochronous pipes in such a way to transfer data back at about 250 MB/s.  Also, control messages are really easy to send, so this could also be a really useful tool for programming chips, too!
+(1) The Firmware: It is firmware that turns the GPIF-II bus into a 16-bit, 100 MHz sampling device.  Synchronously receiving data and storing it in a buffer to stream back to a computer.  My firmware sets up the isochronous pipes in such a way to transfer data back at about 250 MB/s.  Also, control messages are really easy to send, so this could also be a really useful tool for programming chips, too!  Currently, I'm still using the Windows tools to compile, but shouldn't be hard to use GCC ARM to compile in Linux, especially with the Official Cypress SDK.
 
-(2) CyprIO (pronounced saɪˈpirˈēˈō): My C-library for use in Windows (and hopefully Linux soon) that lets you talk to my firmware on the cpress chip.  Originally Cypress offered a CyAPI that let you use C++ to talk to their parts, but in digging into it, I found that it was extremely overbearing, and just not a good fit for many of the projects I wanted.  Speicifically, more library-style operations, i.e. introducing into sigrok, etc.  So, I re-wrote it, in C.  Also, a side benefit of this is you can compile it and use it in Windows with only TCC (a 6MB package).  All header files needed to compile are included.  No Visual Studio needed or anything.
+(2) CyprIO (pronounced saɪˈpirˈēˈō): My C-library for use in Windows (with CyUSB32.sys) or Linux (with libusb) that lets you talk to my firmware on the cpress chip.  Originally Cypress offered a CyAPI that let you use C++ to talk to their parts, but in digging into it, I found that it was extremely overbearing, and just not a good fit for many of the projects I wanted.  Speicifically, more library-style operations, i.e. introducing into sigrok, etc.  So, I re-wrote it, in C.  Also, a side benefit of this is you can compile it and use it in Windows with only TCC (a 6MB package).  All header files needed to compile are included.  No Visual Studio needed or anything.
+
+The PC-side software works in Windows (TCC) or Linux (GCC). Test in both as of Dec 31, 2017.  Who knows if it'll keep working.
 
 (3) isotest - make control transfer to start sampling GPIF bus and receives data coming back. (Uses CyprIO)
 
@@ -253,3 +255,17 @@ NEXT: How do we flash to the I2C EEPROM? (3:00 AM)
 Apparently, that's easy.  First, RAM it to the Flasher firmware.  Then call flash commands. (0x40/0xBA/(Windex/Wvalue) of the raw binary image.  No interpretation needed.
 
 AND NOW IT WORKS WITH I2C EEPROM (3:50 AM)
+
+Dec 30, starting around 8 PM... Porting to Linux.
+
+Just mostly #define out the stuff that is flagrantly Windows.
+
+Booted back into Windows to make sure it was still working.  It wasn't.  Also, while in Windows, ditched any of the CyUSB3 stuff in critical path.  It could be replaced by generic calls to the control transfer stuff.
+
+WOOHH SUCCESSFULLY FLASHING IN LINUX!!!  (11:08 PM!)
+
+Woah this isochronous thing was kicking my butt.  12:54 AM, Dec 31, 2017.  Iso in linux looks weird, but seems to be working.  I'm worried it may be dropping packets.
+
+Back and forth to Windows once more and everything works in both.
+
+Dec 31, 1:09 AM.  Remerging back into master.

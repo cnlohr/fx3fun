@@ -2,10 +2,12 @@
 	API Routine to boot Cypress FX3 to a specific firmware image.
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 	Tested on Windows, working full functionality 12/30/2017
+	Tested on Linux, working full functionality 12/31/2017
 */
 
 #include <libcyprio.h>
 #include <stdio.h>
+#include <string.h>
 
 int CyprIOBootloaderImage( const char * fwfile )
 {
@@ -41,17 +43,17 @@ int CyprIOBootloaderImage( const char * fwfile )
 	uint8_t comp[2048];
 
 	int k = CyprIOControlTransfer( &eps, 0xc0, 0xa0, 0, 0, comp, 1, 5000 );
-	if( k != 1 || comp[0] != 0x24 )
+	if( k != 1 )
 	{
-		fprintf( stderr, "Error: Control message returned confusing result.\n" );
+		fprintf( stderr, "Error: Control message returned confusing result (%d / %02x)\n", k, comp[0] );
 		goto error;
 	}
 	
 	firmware = fopen( fwfile, "rb" );
 	uint8_t header[4];
-	fread( header, 4, 1, firmware );
+	r = fread( header, 4, 1, firmware );
 
-	if( header[0] != 'C' || header[1] != 'Y' )
+	if( r < 1 || header[0] != 'C' || header[1] != 'Y' )
 	{
 		fprintf( stderr, "Invalid image file.\n" );
 		goto error;
@@ -71,7 +73,7 @@ int CyprIOBootloaderImage( const char * fwfile )
 		}
 		if( r != 8 )
 		{
-			fprintf( stderr, "Can't read header section in firmware at %d (%d)\n", ftell(firmware), r );
+			fprintf( stderr, "Can't read header section in firmware at %d (%d)\n", (int)ftell(firmware), r );
 			goto error;
 		}
 
@@ -88,7 +90,7 @@ int CyprIOBootloaderImage( const char * fwfile )
 			continue;
 		}
 		
-		printf( "Flashing section %08x with %d bytes (@%08x)\n", flashspot, remain, ftell (firmware ) );
+		printf( "Flashing section %08x with %d bytes (@%08x)\n", flashspot, remain, (int)ftell (firmware ) );
 		
 		while( !feof( firmware ) && !ferror( firmware ) && remain > 0 )
 		{
@@ -96,7 +98,7 @@ int CyprIOBootloaderImage( const char * fwfile )
 			int r = fread( buf, toread, 1, firmware );
 			if( r <= 0 )
 			{
-				fprintf( stderr, "Error reading firmware file at address %d\n", ftell(firmware) );
+				fprintf( stderr, "Error reading firmware file at address %d\n", (int)ftell(firmware) );
 				goto error;
 			}
 			remain -= toread;
@@ -109,7 +111,7 @@ int CyprIOBootloaderImage( const char * fwfile )
 				flashspot += toread;
 				if( e != k || e != toread || memcmp( comp, buf, toread ) != 0 )
 				{
-					fprintf( stderr, "Retrying... (%d/%d/d)", e, k, toread );
+					fprintf( stderr, "Retrying... (%d/%d/%d)", e, k, toread );
 					if( tries++ > 10 )
 					{
 						fprintf( stderr, "Error: Can't flash.\n" );

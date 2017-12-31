@@ -1,9 +1,22 @@
 #ifndef _DEVAUX_HEADER
 #define _DEVAUX_HEADER
 
+
+
+	
+#if defined( WINDOWS ) || defined( WIN32 )
 #include <windows.h>
+#else
+#define UCHAR uint8_t
+#define USHORT uint16_t
+#define ULONG uint32_t
+#define WCHAR uint16_t
+#define ZeroMemory( mem, size ) memset( (mem), (0), (size) )
+#endif
 
 
+#if defined( WINDOWS ) || defined( WIN32 )
+#include <windows.h>
 #ifdef TCC
 	typedef struct _SP_DEVINFO_DATA {
 		DWORD     cbSize;
@@ -78,55 +91,9 @@
 	
 	
 	
-	
-	
-	
-	
 	#pragma pack(1)
 	
 	
-	
-	
-	
-	
-	
-	//These are from cyusb30_def.hDevice
-	// USB3.0 specific constant defination
-	#define BCDUSBJJMASK  0xFF00 //(0xJJMN JJ - Major version,M Minor version, N sub-minor vesion)
-	#define USB30MAJORVER 0x0300
-	#define USB20MAJORVER 0x0200
-
-	#define USB_BOS_DESCRIPTOR_TYPE			      0x0F
-	#define USB_DEVICE_CAPABILITY                 0x10
-	#define USB_SUPERSPEED_ENDPOINT_COMPANION     0x30
-	#define USB_BOS_CAPABILITY_TYPE_Wireless_USB  0x01
-	#define USB_BOS_CAPABILITY_TYPE_USB20_EXT	  0x02
-	#define USB_BOS_CAPABILITY_TYPE_SUPERSPEED_USB    0x03
-	#define USB_BOS_CAPABILITY_TYPE_CONTAINER_ID       0x04
-	#define USB_BOS_CAPABILITY_TYPE_CONTAINER_ID_SIZE  0x10
-
-	#define USB_BOS_DEVICE_CAPABILITY_TYPE_INDEX 0x2
-	//constant defination
-	typedef struct _USB_BOS_DESCRIPTOR
-	{
-		UCHAR bLength;/* Descriptor length*/
-		UCHAR bDescriptorType;/* Descriptor Type */
-		USHORT wTotalLength;/* Total length of descriptor ( icluding device capability*/
-		UCHAR bNumDeviceCaps;/* Number of device capability descriptors in BOS  */
-	}USB_BOS_DESCRIPTOR,*PUSB_BOS_DESCRIPTOR;
-
-
-
-	typedef struct _USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR
-	{
-		UCHAR bLength;
-		UCHAR bDescriptorType;
-		UCHAR bMaxBurst;
-		UCHAR bmAttributes;        
-		USHORT bBytesPerInterval;
-	}USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR,*PUSB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR;
-
-
 	
 	//These are from cyioctl.h
 
@@ -291,13 +258,55 @@
 	#define IOCTL_ADAPT_GET_CURRENT_FRAME         CTL_CODE(FILE_DEVICE_UNKNOWN, IOCTL_ADAPT_INDEX+20, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 	#define NUMBER_OF_ADAPT_IOCTLS 21 // Last IOCTL_ADAPT_INDEX + 1
-
-
-
 #else
 	#include <setupapi.h>
 	#include <winioctl.h>
 #endif
+
+#else
+	#include <libusb-1.0/libusb.h>
+#endif
+
+
+
+	
+
+//These are from cyusb30_def.hDevice
+// USB3.0 specific constant defination
+#define BCDUSBJJMASK  0xFF00 //(0xJJMN JJ - Major version,M Minor version, N sub-minor vesion)
+#define USB30MAJORVER 0x0300
+#define USB20MAJORVER 0x0200
+
+#define USB_BOS_DESCRIPTOR_TYPE			      0x0F
+#define USB_DEVICE_CAPABILITY                 0x10
+#define USB_SUPERSPEED_ENDPOINT_COMPANION     0x30
+#define USB_BOS_CAPABILITY_TYPE_Wireless_USB  0x01
+#define USB_BOS_CAPABILITY_TYPE_USB20_EXT	  0x02
+#define USB_BOS_CAPABILITY_TYPE_SUPERSPEED_USB    0x03
+#define USB_BOS_CAPABILITY_TYPE_CONTAINER_ID       0x04
+#define USB_BOS_CAPABILITY_TYPE_CONTAINER_ID_SIZE  0x10
+
+#define USB_BOS_DEVICE_CAPABILITY_TYPE_INDEX 0x2
+//constant defination
+typedef struct _USB_BOS_DESCRIPTOR
+{
+	UCHAR bLength;/* Descriptor length*/
+	UCHAR bDescriptorType;/* Descriptor Type */
+	USHORT wTotalLength;/* Total length of descriptor ( icluding device capability*/
+	UCHAR bNumDeviceCaps;/* Number of device capability descriptors in BOS  */
+}USB_BOS_DESCRIPTOR,*PUSB_BOS_DESCRIPTOR;
+
+
+
+typedef struct _USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR
+{
+	UCHAR bLength;
+	UCHAR bDescriptorType;
+	UCHAR bMaxBurst;
+	UCHAR bmAttributes;        
+	USHORT bBytesPerInterval;
+}USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR,*PUSB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR;
+
 
 
 #endif

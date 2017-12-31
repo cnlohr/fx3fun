@@ -2,12 +2,21 @@
 	Tool to boot Cypress FX3 to image file, or flash image file to external i2c EEPROM.	
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 	Tested on Windows, working full functionality 12/30/2017
+	Tested on Linux, working full functionality 12/31/2017
 */
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+//For 'sleep' / 'usleep'
+#if defined( WIN32 ) || defined( WINDOWS )
 #include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <libcyprio.h>
 
 
@@ -84,7 +93,6 @@ int main( int argc, char ** argv )
 		sleep(1);
 		#endif
 		
-		printf( "Re-enumerating to flash.\n");
 		struct CyprIO eps;
 		
 		if( CyprIOConnect( &eps, 0, 0x04b4, 0x4720 ) )
@@ -132,7 +140,7 @@ int main( int argc, char ** argv )
 
 			}
 			printf( "." );
-
+			fflush ( stdout );
 			flashspot += r;
 		}
 

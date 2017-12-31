@@ -1,8 +1,11 @@
 #ifndef   __USB100_H__
 #define   __USB100_H__
 
-
+#if defined(WINDOWS) || defined( WIN32 )
 #include <PSHPACK1.H>
+#else
+#include "cyprio_aux.h"
+#endif
 
 
 //bmRequest.Dir
@@ -263,8 +266,9 @@ typedef struct _USB_INTERFACE_POWER_DESCRIPTOR {
 } USB_INTERFACE_POWER_DESCRIPTOR, *PUSB_INTERFACE_POWER_DESCRIPTOR;
 
 
+#if defined(WINDOWS) || defined( WIN32 )
 #include <POPPACK.H>
-
+#endif
 
 #endif   /* __USB100_H__ */
 

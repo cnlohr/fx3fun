@@ -1,5 +1,5 @@
 set TCC=C:\tcc\tcc.exe
-set CFLAGS=-DTCC -DWINDOWS -DHIDAPI -DWIN32 -Os -I. -I../libcyprio
+set CFLAGS=-DTCC -DWINDOWS -DHIDAPI -DWIN32 -Os -I. -I../libcyprio -Werror
 set LDFLAGS=-s  -lkernel32 -lgdi32 -luser32 -lsetupapi -ldbghelp
 
 del cyprflash.exe

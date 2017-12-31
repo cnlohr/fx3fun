@@ -3,7 +3,7 @@
 	
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 	
-	This file is currently Windows only.  I expect to have parallel functionality in Linux soon.
+	Tested with Windows/Linux.  Issues with isoc transfers in Linux remain, but it "looks" like it's working.
 */
 
 
@@ -30,8 +30,6 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 	ep->MaxPktSize = (epd->wMaxPacketSize & 0x7ff) * ep->PktsPerFrame;
 	ep->Interval   = epd->bInterval;
 	ep->bIn        = ((ep->Address & 0x80) == 0x80);
-
-    ep->XferMode  = XMODE_DIRECT;  // Normally, use Direct xfers
 
 	if( SSEndPtDescriptor )
 	{
@@ -61,9 +59,11 @@ static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths,
 }
 
 
+#if defined( WINDOWS ) || defined( WIN32 )
 
+//XXX WARNING: Currently only written for ISO IN packets!!!
 
-int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
+int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
 {
 	int i;
 	int TimeOut = 1000;
@@ -162,23 +162,123 @@ int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nr
 }
 
 
+#else
+
+
+
+static void cb_xfr(struct libusb_transfer *xfr)
+{
+	void ** dat = xfr->user_data;
+
+	struct CyprIOEndpoint * ep = (struct CyprIOEndpoint *)dat[0];
+	int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ) = (int (*)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ))dat[1];
+	void * id = (void*)dat[2];
+	int i;
+
+	if (xfr->status != LIBUSB_TRANSFER_COMPLETED)
+	{
+		fprintf(stderr, "Error: Status of transfer bad.\n" );
+		goto kill;
+	}
+
+	int tl = 0;
+	if (xfr->type == LIBUSB_TRANSFER_TYPE_ISOCHRONOUS) {
+		for (i = 0; i < xfr->num_iso_packets; i++) {
+			struct libusb_iso_packet_descriptor *pack = &xfr->iso_packet_desc[i];
+			tl += pack->actual_length;
+			if (pack->status != LIBUSB_TRANSFER_COMPLETED) {
+				fprintf(stderr, "Error: pack %u status %d\n", i, pack->status);
+				goto kill;
+			}
+		}
+	}
+
+//printf( "CBDOX %d %d %02x %d %d\n", xfr->buffer, xfr->num_iso_packets, xfr->buffer[0], tl, xfr->actual_length );
+
+	if( callback( id, ep, xfr->buffer, tl ) )
+		goto kill;
+
+	if (libusb_submit_transfer(xfr) < 0) {
+		fprintf(stderr, "error re-submitting URB\n");
+		goto kill;
+	}
+	return;
+
+kill:
+	dat[3] = (void*)1;
+	libusb_close( ep->parent->hDevice );
+	return;
+}
+
+//XXX WARNING: Currently only written for ISO IN packets!!!
+int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
+{
+	//I don't know what's up with this, things get janky 
+	#define NR_XFER_BUFFER 1
+	static struct libusb_transfer *xfr[NR_XFER_BUFFER];
+
+	void * transferinfo[4];
+	transferinfo[0] = ep;
+	transferinfo[1] = callback;
+	transferinfo[2] = id;
+	transferinfo[3] = 0;
+
+	uint8_t * rbuf = malloc(buffersize*nrbuffers*NR_XFER_BUFFER); //XXX TODO: is buf required for in transfers??
+	int epno = ep->Address;
+
+	printf( "EPNO %02x /Size %d/ Buffers %d\n", epno, buffersize, nrbuffers );
+
+	int i;
+	for( i = 0; i < NR_XFER_BUFFER; i++ )
+	{
+		uint8_t  * tbuf = &rbuf[i*buffersize*nrbuffers];
+		xfr[i] = libusb_alloc_transfer( nrbuffers );
+		if (!xfr[i])
+		{
+			free( rbuf );
+			return -6;
+		}
+
+		if ( 1 ) // EP_ISO_IN  (We currently don't use the alternate)
+		{
+			libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize, nrbuffers, cb_xfr, transferinfo, 5000);
+			libusb_set_iso_packet_lengths(xfr[i],buffersize);
+		}
+		else
+		{
+			//Currently bulk transfers are not supported.
+			libusb_fill_bulk_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize, cb_xfr, transferinfo, 5000);
+		}
+
+		int ret = libusb_submit_transfer(xfr[i]);
+		if( ret < 0 )
+		{
+			fprintf( stderr, "Error with submit of transfer: %d (%s)\n", ret, libusb_error_name(ret) );
+			free( rbuf );
+			return ret;
+		}
+	}
+
+	while (!transferinfo[3]) {
+		int rc = libusb_handle_events(NULL);
+		if (rc != LIBUSB_SUCCESS)
+			break;
+	}
+	for( i = 0; i < NR_XFER_BUFFER; i++ )
+		libusb_free_transfer( xfr[i] );
+
+	free( rbuf );
+	return -1;
+}
+
+#endif
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+#if defined( WINDOWS ) || defined( WIN32 )
 
 int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 {
@@ -325,8 +425,43 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 
     return -1;
 }
+#else
 
 
+int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
+{
+	static int inited;
+	int rc;
+
+	rc = libusb_init(NULL);
+	if (rc < 0) {
+		fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(rc));
+		return -1;
+	}
+
+	ths->hDevice = libusb_open_device_with_vid_pid(NULL, vid, pid);
+	if (!ths->hDevice)
+	{
+		fprintf(stderr, "Error finding USB device\n");
+		goto out;
+	}
+
+	return 0;
+out:
+	
+	if (ths->hDevice)
+		libusb_close(ths->hDevice);
+	ths->hDevice = 0;
+	libusb_exit(NULL);
+	return -4;
+
+}
+
+#endif
+
+
+
+#if defined( WIN32 ) || defined( WINDOWS) 
 int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len)
 {
     if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
@@ -376,14 +511,16 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 		}
 		received-=sizeof( SINGLE_TRANSFER ); 
 		ths->BytesXferedLastControl = received;
-		memcpy( data, buffer + sizeof( SINGLE_TRANSFER ), received );
+		if( data )
+			memcpy( data, buffer + sizeof( SINGLE_TRANSFER ), received );
 		free( buffer );
 		return received;
 	}
 	else
 	{
 		//Direction Host to Device (out)
-		memcpy( buffer + sizeof( SINGLE_TRANSFER ), data, wLength );
+		if( data )
+			memcpy( buffer + sizeof( SINGLE_TRANSFER ), data, wLength );
 		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, buffer, buflen, &received, NULL);
 		if( !ret )
 		{
@@ -396,9 +533,16 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 		return wLength;
 	}
 }
+#else
+int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout )
+{
+	return libusb_control_transfer( ths->hDevice, bmRequestType, bRequest, wValue, wIndex, data, wLength, timeout );
+}
+
+#endif
 
 
-int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex)
+int CyprIOGetString( struct CyprIO * ths, uint16_t *str, uint8_t sIndex)
 {
 	uint8_t buffer[USB_STRING_MAXLEN+2];
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8) | sIndex, ths->StrLangID, buffer, sizeof( buffer ), 1000 );
@@ -434,7 +578,7 @@ static int CyprIOGetInteralBOSDescriptor( struct CyprIO * ths )
 
 
 
-static int PrintWString( wchar_t * ct )
+static int PrintWString( uint16_t * ct )
 {
 	int i;
 	for( i = 0; ct[i]; i++ )
@@ -462,20 +606,10 @@ static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 
 int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 {
-	PSINGLE_TRANSFER pSingleTransfer;
-	HANDLE hd = ths->hDevice;
 	char buf[256];
 	int bRetVal;
     uint32_t length;
 	USB_COMMON_DESCRIPTOR cmnDescriptor;
-
-	if( !hd )
-	{
-		DEBUGINFO( "Error: CyprIOGetDevDescriptorInformation called on a non-open device\n" );
-		return -1;
-	}
-	
-    //USB_DEVICE_DESCRIPTOR devDescriptor;
 
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_DEVICE_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&ths->USBDeviceDescriptor, sizeof(USB_DEVICE_DESCRIPTOR), 2000 );
     if (ret<0) { DEBUGINFO( "Couldn't get cmnDesctiptor\n" ); return ret; }
@@ -518,38 +652,10 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 			return 1;
 		}
 	}
-	
-	//Theoretically, we should be processing the BOS descriptor here...  I don't know if we acutally need to.
-	if( CyprIOControl( ths, IOCTL_ADAPT_GET_ADDRESS, &ths->USBAddress, 1L) )
-	{
-		DEBUGINFO ("Failed to get USB address\n" );
-		return 1;
-	}
 
-    ZeroMemory(ths->FriendlyName, USB_STRING_MAXLEN);
-	CyprIOControl(ths, IOCTL_ADAPT_GET_FRIENDLY_NAME, (PUCHAR)ths->FriendlyName, USB_STRING_MAXLEN);
-	if( ths->BytesXferedLastControl <= 0 )
-	{
-		DEBUGINFO( "Failed to get friendly name %d\n", ths->LastError );
-		return 1;
-	}
 	//You can also get IOCTL_ADAPT_GET_DEVICE_NAME the same way but I don't care for it.
 	//Also bool bRetVal = IoControl(IOCTL_ADAPT_GET_DRIVER_VERSION, (PUCHAR) &DriverVersion, sizeof(ULONG)); for Driver version.
 	//Also bool bRetVal = IoControl(IOCTL_ADAPT_GET_USBDI_VERSION, (PUCHAR) &USBDIVersion, sizeof(ULONG));
-
-	
-	uint32_t speed = 0;
-	int bHighSpeed = 0;
-	int bSuperSpeed = 0;
-
-	CyprIOControl( ths, IOCTL_ADAPT_GET_DEVICE_SPEED, (PUCHAR)&speed, sizeof(speed));
-	bHighSpeed = (speed == DEVICE_SPEED_HIGH);
-	bSuperSpeed = (speed == DEVICE_SPEED_SUPER);
-	if( ths->is_usb_3 && !bSuperSpeed )
-	{
-		DEBUGINFO( "Error: Super speed bit not set!\n" );
-		return -3;
-	}
 
 	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
 	int i;
@@ -582,25 +688,12 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 	   return -1;
 	}
 
-	printf( "Successfully connected to: %s\n", ths->FriendlyName );
 	return 0;
 }
 
 
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 {
-	HANDLE hd = ths->hDevice;
-	if( !hd )
-	{
-		DEBUGINFO( "Error: CyprIOSetup called on a non-open device\n" );
-		return -1;
-	}
-	/* The folllowing code is kind of after of the 
-			for (int i=0; i<Configs; i++) 
-				{
-					GetCfgDescriptor(i);
-		section in CyAPI.cpp. */
-		
 	//What actually happens there is it instantiates a number of classes
 	//based on the contents in USBConfigDescriptors.  This feels like considerable
 	//overkill.  So, I'm shooting for making this really simple.
@@ -625,7 +718,7 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	
 	PUSB_CONFIGURATION_DESCRIPTOR pConfigDescr = ths->USBConfigDescriptors[use_config];
 	int tLen = pConfigDescr->wTotalLength;
-	PUCHAR desc = (PUCHAR)pConfigDescr;
+	uint8_t * desc = (uint8_t*)pConfigDescr;
 	int bytesConsumed = pConfigDescr->bLength;
 
 	printf( "Looping:\n");
@@ -634,7 +727,7 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 
 	int totalread = 0;
 	
-	PUCHAR end = desc + tLen;
+	uint8_t* end = desc + tLen;
 	desc += pConfigDescr->bLength;
 	
 	while( desc < end && ifaces < MAX_INTERFACES)
@@ -689,6 +782,26 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 		} 
 	}
 
+#if defined( WIN32 ) || defined( WINDOWS )
+	uint32_t speed = 0;
+	int bHighSpeed = 0;
+	int bSuperSpeed = 0;
+
+	CyprIOControl( ths, IOCTL_ADAPT_GET_DEVICE_SPEED, (PUCHAR)&speed, sizeof(speed));
+	bHighSpeed = (speed == DEVICE_SPEED_HIGH);
+	bSuperSpeed = (speed == DEVICE_SPEED_SUPER);
+	if( ths->is_usb_3 && !bSuperSpeed )
+	{
+		DEBUGINFO( "Error: Super speed bit not set!\n" );
+		return -3;
+	}
+#else
+	//If need be, use the libusb functions to the same.
+#endif
+	
+	CyprIOControlTransfer( ths, 0x00, USB_REQUEST_SET_INTERFACE, use_iface, 0, 0, 0, 1000 );
+
+#if defined(WINDOWS) || defined( WIN32 )
 
     UCHAR alt;
 	if (CyprIOControl(ths,IOCTL_ADAPT_GET_ALT_INTERFACE_SETTING, &alt, 1))
@@ -699,7 +812,15 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
 	CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, (uint8_t*)&use_iface, 1L);
 	
-	//Isn't there some sort of "claim" operation that needs to happen?
+#else
+	int rc;
+	rc = libusb_claim_interface( ths->hDevice, 0);
+	if (rc < 0) {
+		fprintf(stderr, "Error claiming interface %d: %s\n", rc, libusb_error_name(rc));
+		return -9;
+	}
+	libusb_set_interface_alt_setting( ths->hDevice, 0, use_iface );
+#endif
 
 	return 0;
 }
@@ -709,7 +830,12 @@ void CyprIODestroy( struct CyprIO * ths )
 {
 	if( !ths ) return;
 	if( !ths->hDevice ) return;
+#if defined( WINDOWS ) || defined( WIN32 )
 	CloseHandle( ths->hDevice );
+#else
+	libusb_release_interface( ths->hDevice, 0 );
+	libusb_close( ths->hDevice );
+#endif
 	ths->hDevice = 0;
 	if( ths->pUsbBosDescriptor ) free( ths->pUsbBosDescriptor );
 	ths->pUsbBosDescriptor = 0;
@@ -720,3 +846,4 @@ void CyprIODestroy( struct CyprIO * ths )
 		ths->USBConfigDescriptors[i] = 0;
 	}
 }
+

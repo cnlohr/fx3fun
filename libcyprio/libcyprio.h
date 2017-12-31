@@ -2,9 +2,7 @@
 	Cypress FX3 library for easier C access directly to FX3 boards (mostly via CyUSB3.sys)
 	
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
-	
-	This file is currently Windows only.  I expect to have parallel functionality in Linux soon.
-*/
+	*/
 
 #ifndef CYPRIO_H
 #define CYPRIO_H
@@ -27,8 +25,6 @@
 #define MAX_CONFIG_DESCRIPTORS 2
 
 struct CyprIO;
-
-typedef enum {XMODE_BUFFERED, XMODE_DIRECT } XFER_MODE_TYPE; //XXX TODO: Make this go away.
 
 struct CyprIOEndpoint	//Mimicing CCyUSBEndPoint
 {
@@ -53,8 +49,6 @@ struct CyprIOEndpoint	//Mimicing CCyUSBEndPoint
     uint16_t  ssbytesperinterval;
 
     BOOL    bIn;
-
-    XFER_MODE_TYPE  XferMode;
 };
 
 struct CyprCyIsoPktInfo {
@@ -65,17 +59,14 @@ struct CyprCyIsoPktInfo {
 
 struct CyprIO
 {
-	HANDLE hDevice;
 	USB_DEVICE_DESCRIPTOR USBDeviceDescriptor;
 	int BytesXferedLastControl;
 	int LastError;
 	int StrLangID;
-	wchar_t Manufacturer[USB_STRING_MAXLEN];
-	wchar_t Product[USB_STRING_MAXLEN];
-	wchar_t SerialNumber[USB_STRING_MAXLEN];
+	WCHAR Manufacturer[USB_STRING_MAXLEN];
+	WCHAR Product[USB_STRING_MAXLEN];
+	WCHAR SerialNumber[USB_STRING_MAXLEN];
 	PUSB_BOS_DESCRIPTOR pUsbBosDescriptor;
-	char FriendlyName[USB_STRING_MAXLEN];
-    uint8_t       USBAddress;
 	PUSB_CONFIGURATION_DESCRIPTOR   USBConfigDescriptors[MAX_CONFIG_DESCRIPTORS];	//Must check and free.
 	PUSB_INTERFACE_DESCRIPTOR		USBIfaceDescriptors[MAX_INTERFACES];
 	int								USBIfaceAltSettings[MAX_INTERFACES];
@@ -86,10 +77,15 @@ struct CyprIO
 	int SelInterface;
 	
 	uint8_t is_usb_3;
+
+#if defined(WINDOWS) || defined( WIN32 )
+	HANDLE hDevice;
+#else
+	struct libusb_device_handle * hDevice;
+#endif
 };
 
 
-int CyprIODoCircularDataXfer( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 //Setup
 int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid);
@@ -97,14 +93,14 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths );
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface );
 void CyprIODestroy( struct CyprIO * ths );
 
-//Raw control messages, these ave unusual specific uses.
-int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t len);
-
 //Sort of utiltiy that binds the above 2. Mimics libusb_control_transfer from libusb, to ease portability.  Only for IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER.  Other messages must be done using the other mechanisms.  This however, can only make regular control message calls.
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
 
-int CyprIOGetString( struct CyprIO * ths, wchar_t *str, uint8_t sIndex);
+//Set up a high performance asynchronous transfer in from an ISO endpoint.
+int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
+
+int CyprIOGetString( struct CyprIO * ths, WCHAR *str, uint8_t sIndex);
 
 
 
