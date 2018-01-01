@@ -15,6 +15,10 @@ The PC-side software works in Windows (TCC) or Linux (GCC). Test in both as of D
 
 [![Cypress FX3 as a Possible Logic Analyzer](https://img.youtube.com/vi/_LnZrXrdC00/0.jpg)](https://www.youtube.com/watch?v=_LnZrXrdC00)
 
+# Licensing
+
+Though everything I am writing may be licensed under the MIT/x11 license OR the NewBSD license (Both of which are compaible with the GPL/LGPL/AFL), there remain some questions about compiling against the Cypress API.  I am still looking into this but hope to clear up questions regarding this soon.
+
 ## Project Log
 
 Dec 25, 2017:
