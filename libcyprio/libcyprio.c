@@ -199,9 +199,12 @@ static void cb_xfr(struct libusb_transfer *xfr)
 //printf( "CBDOX %d %d %02x %d %d\n", xfr->buffer, xfr->num_iso_packets, xfr->buffer[0], tl, xfr->actual_length );
 
 
-	if (libusb_submit_transfer(xfr) < 0) {
-		fprintf(stderr, "error re-submitting URB\n");
-		goto kill;
+	if( !ep->parent->shutdown )
+	{
+		if (libusb_submit_transfer(xfr) < 0) {
+			fprintf(stderr, "error re-submitting URB\n");
+			goto kill;
+		}
 	}
 	return;
 
@@ -285,7 +288,9 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 	int Devices = 0;
 	
 	ZeroMemory( ths, sizeof( *ths) );
-	
+
+	ths->shutdown = 0;
+
 	char matching[1024];
 	sprintf( matching, "\\\\?\\usb#vid_%04x&pid_%04x#", vid, pid );
 

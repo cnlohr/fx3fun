@@ -12,6 +12,7 @@
 #if defined(WINDOWS) || defined( WIN32 )
 #include <windows.h>
 #else
+#include <signal.h>
 #include <unistd.h>
 #endif
 
@@ -54,7 +55,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	//if( data[0] != 0xaa ) printf( "Bad data\n" );
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	
-	#if 0
+	#if 1
 	#ifdef SIXTEEN_BITS
 		fwrite( data, length, 1, fout );
 	#else
@@ -78,11 +79,22 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	return 0;
 }
 
+#if !defined(WINDOWS) && !defined(WIN32)
+void CtrlCSignal()
+{
+	eps.shutdown = 1;
+	usleep(100000);
+	CyprIODestroy( &eps );
+}
+#endif
 
 int main()
 {
 	fout = fopen( "data.dat", "wb" );
 	printf( "Test streamer\n" );
+
+	signal(SIGINT, CtrlCSignal);
+
 	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{

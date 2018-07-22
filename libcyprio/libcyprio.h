@@ -78,6 +78,8 @@ struct CyprIO
 	
 	uint8_t is_usb_3;
 
+	volatile uint8_t shutdown;
+
 #if defined(WINDOWS) || defined( WIN32 )
 	HANDLE hDevice;
 #else
