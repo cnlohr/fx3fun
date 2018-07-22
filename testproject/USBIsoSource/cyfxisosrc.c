@@ -625,7 +625,7 @@ CyFxIsoSrcApplnInit (void)
     //CyU3PGpioSimpleConfig_t gpioConfig;
     //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-    pibClock.clkDiv      = 4; //~400 MHz / 4.
+    pibClock.clkDiv      = 8; //~400 MHz / 4.
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse; //Adds 0.5 to divisor
     pibClock.isDllEnable = CyTrue;	//For async or master-mode
