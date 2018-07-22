@@ -2,6 +2,7 @@
 	Tool to test Cypress FX3 isochronous transfers using the stream test firmware
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 	Tested on Windows, working full functionality 12/30/2017
+	Tested on Linux, working full functionality 7/22/2018
 */
 
 #include <stdio.h>

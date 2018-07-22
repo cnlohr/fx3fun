@@ -2,6 +2,7 @@
 	Tool to test Cypress FX3 isochronous transfers using the stream test firmware
 	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 	Tested on Windows, working full functionality 12/30/2017
+	Tested on Linux, working full functionality 7/22/2018
 */
 
 #include <stdio.h>
@@ -12,6 +13,7 @@
 #if defined(WINDOWS) || defined( WIN32 )
 #include <windows.h>
 #else
+#include <signal.h>
 #include <unistd.h>
 #endif
 
@@ -61,10 +63,20 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	return 0;
 }
 
+#if !defined(WINDOWS) && !defined(WIN32)
+void CtrlCSignal()
+{
+	eps.shutdown = 1;
+	usleep(100000);
+	CyprIODestroy( &eps );
+}
+#endif
+
 
 int main()
 {
 	printf( "Test streamer\n" );
+	signal(SIGINT, CtrlCSignal);
 	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{
