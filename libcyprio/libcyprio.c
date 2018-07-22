@@ -185,7 +185,10 @@ static void cb_xfr(struct libusb_transfer *xfr)
 	if (xfr->type == LIBUSB_TRANSFER_TYPE_ISOCHRONOUS) {
 		for (i = 0; i < xfr->num_iso_packets; i++) {
 			struct libusb_iso_packet_descriptor *pack = &xfr->iso_packet_desc[i];
-			tl += pack->actual_length;
+
+			if( pack->actual_length && callback( id, ep, xfr->buffer+pack->length*i, pack->actual_length ) )
+				goto kill;
+
 			if (pack->status != LIBUSB_TRANSFER_COMPLETED) {
 				fprintf(stderr, "Error: pack %u status %d\n", i, pack->status);
 				goto kill;
@@ -195,8 +198,6 @@ static void cb_xfr(struct libusb_transfer *xfr)
 
 //printf( "CBDOX %d %d %02x %d %d\n", xfr->buffer, xfr->num_iso_packets, xfr->buffer[0], tl, xfr->actual_length );
 
-	if( callback( id, ep, xfr->buffer, tl ) )
-		goto kill;
 
 	if (libusb_submit_transfer(xfr) < 0) {
 		fprintf(stderr, "error re-submitting URB\n");
@@ -214,7 +215,7 @@ kill:
 int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
 {
 	//I don't know what's up with this, things get janky 
-	#define NR_XFER_BUFFER 1
+	#define NR_XFER_BUFFER 32
 	static struct libusb_transfer *xfr[NR_XFER_BUFFER];
 
 	void * transferinfo[4];
@@ -225,7 +226,6 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 
 	uint8_t * rbuf = malloc(buffersize*nrbuffers*NR_XFER_BUFFER); //XXX TODO: is buf required for in transfers??
 	int epno = ep->Address;
-
 	printf( "EPNO %02x /Size %d/ Buffers %d\n", epno, buffersize, nrbuffers );
 
 	int i;

@@ -1,4 +1,4 @@
-all : isotest
+all : isotest recstream
 
 LCYPRIO:=../libcyprio
 CFLAGS:=-I$(LCYPRIO) -Os
@@ -9,6 +9,9 @@ CYPRIO:=$(LCYPRIO)/libcyprio.c $(LCYPRIO)/libcyprio_util.c
 isotest : teststream.c os_generic.c $(CYPRIO)
 	gcc -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
+recstream : recstream.c os_generic.c $(CYPRIO)
+	gcc -o $@ $^ $(CFLAGS) $(LDFLAGS)
+
 clean :
-	rm -rf *.o *~ isotest
+	rm -rf *.o *~ isotest recstream
 

@@ -54,6 +54,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	//if( data[0] != 0xaa ) printf( "Bad data\n" );
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	
+	#if 0
 	#ifdef SIXTEEN_BITS
 		fwrite( data, length, 1, fout );
 	#else
@@ -65,11 +66,11 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		}
 		fwrite( ubigbuf, length, 1, fout );
 	#endif
-	
+	#endif
 	
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000, data[0], data[1] );
+		printf( "Got %.3f kB/s [%02x %02x] [%d pack]\n", bytes/1000, data[0], data[1], length );
 		Last++;
 		bytes = 0;
 
@@ -160,7 +161,7 @@ int main()
 #if defined( WINDOWS ) || defined( WIN32)
 	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
 #else
-	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 16,  callback, 0 );
+	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 8,  callback, 0 );
 #endif
 	printf( "Done with circular data xfer\n" );
 

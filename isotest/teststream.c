@@ -53,7 +53,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000, data[0], data[1] );
+		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1024.0, data[0], data[1] );
 		Last++;
 		bytes = 0;
 
