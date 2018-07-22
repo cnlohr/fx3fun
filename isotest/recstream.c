@@ -45,13 +45,28 @@ void * TickThread( void * v )
 	}
 }
 
+uint8_t ubigbuf[8192*1024];
+
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
 {
 	bytes += length;
 	double Now = OGGetAbsoluteTime();
 	//if( data[0] != 0xaa ) printf( "Bad data\n" );
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
-	fwrite( data, length, 1, fout );
+	
+	#ifdef SIXTEEN_BITS
+		fwrite( data, length, 1, fout );
+	#else
+		int i;
+		length/=2;
+		for( i = 0; i < length; i++ )
+		{
+			ubigbuf[i] = ((uint16_t*)data)[i];
+		}
+		fwrite( ubigbuf, length, 1, fout );
+	#endif
+	
+	
 	if( Last + 1 < Now )
 	{
 		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000, data[0], data[1] );
