@@ -21,7 +21,7 @@ double Last;
 double bytes;
 
 struct CyprIO eps;
-
+FILE * fout;
 
 void TickCypr()
 {
@@ -47,15 +47,32 @@ void * TickThread( void * v )
 	}
 }
 
+uint8_t ubigbuf[8192*1024];
+
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
 {
 	bytes += length;
 	double Now = OGGetAbsoluteTime();
 	//if( data[0] != 0xaa ) printf( "Bad data\n" );
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
+	
+	#if 1
+	#ifdef SIXTEEN_BITS
+		fwrite( data, length, 1, fout );
+	#else
+		int i;
+		length/=2;
+		for( i = 0; i < length; i++ )
+		{
+			ubigbuf[i] = ((uint16_t*)data)[i];
+		}
+		fwrite( ubigbuf, length, 1, fout );
+	#endif
+	#endif
+	
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1024.0, data[0], data[1] );
+		printf( "Got %.3f kB/s [%02x %02x] [%d pack]\n", bytes/1000, data[0], data[1], length );
 		Last++;
 		bytes = 0;
 
@@ -72,11 +89,13 @@ void CtrlCSignal()
 }
 #endif
 
-
 int main()
 {
+	fout = fopen( "data.dat", "wb" );
 	printf( "Test streamer\n" );
+
 	signal(SIGINT, CtrlCSignal);
+
 	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{
@@ -155,7 +174,7 @@ int main()
 #if defined( WINDOWS ) || defined( WIN32)
 	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 65536*16, 8,  callback, 0 );
 #else
-	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 16,  callback, 0 );
+	CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 8,  callback, 0 );
 #endif
 	printf( "Done with circular data xfer\n" );
 
