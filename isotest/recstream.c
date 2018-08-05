@@ -94,8 +94,9 @@ int main()
 	fout = fopen( "data.dat", "wb" );
 	printf( "Test streamer\n" );
 
+#if !defined(WINDOWS) && !defined(WIN32)
 	signal(SIGINT, CtrlCSignal);
-
+#endif
 	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{
