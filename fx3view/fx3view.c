@@ -80,7 +80,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 			{
 				latch[i] = datas[i];
 			}
-			fwrite( data, length, 1, RecordFile );
+			fwrite( latch, length, 1, RecordFile );
 			RecordSize += length;
 		}
 	}
