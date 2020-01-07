@@ -44,8 +44,7 @@ int RunningBuffer;
 int DisplayBuffer;
 struct SetBuffer Buffers[MAX_BUFFERS];
 uint16_t LastSample;
-
-
+int hello;
 
 int Record16;
 FILE * RecordFile;
