@@ -59,16 +59,10 @@ int main( int argc, char ** argv )
 		if( showhelp ) break;
 	}
 		
-	if( showhelp )
+	if( showhelp || file == 0 || file[0] == 0 )
 	{
 		fprintf(stderr, "Usage: %s [-hi] [-f file...]\n", argv[0]);
 		exit(-1);
-	}
-	
-	if( file == 0 || file[0] == 0)
-	{
-		fprintf( stderr, "Error: need at least one file parameter to application\n" );
-		exit( -2 );
 	}
 	
 	if( do_flash_i2c )

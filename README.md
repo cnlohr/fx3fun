@@ -15,6 +15,45 @@ The PC-side software works in Windows (TCC) or Linux (GCC). Test in both as of D
 
 [![Cypress FX3 as a Possible Logic Analyzer](https://img.youtube.com/vi/_LnZrXrdC00/0.jpg)](https://www.youtube.com/watch?v=_LnZrXrdC00)
 
+
+# Brief installation notes.
+
+ * git clone this repo somewhere.
+ * Download they Cypress EZ-USB FX3 SDK for Linux from here: https://www.cypress.com/documentation/software-and-drivers/ez-usb-fx3-software-development-kit
+ * You will find "fx3_firmware_linux.tar.gz" and you can take that and drop "cyfx3sdk" in the same folder that "fx3fun" is located in, so they are parallel.
+ * Make a folder in your home folder called `Cypress`
+ * Unzip, from the SDK the following folders into `Cypress`
+   * `arm-2013.11`
+   * `cyusb_linux_1.0.5`
+   * `eclipse` * I don't think this is required.
+
+Add the following to your .bashrc
+
+```
+export PATH=$PATH:$HOME/Cypress/arm-2013.11/bin
+export FX3_INSTALL_PATH=$HOME/Cypress/cyfx3sdk
+export ARMGCC_INSTALL_PATH=$HOME/Cypress/arm-2013.11
+export ARMGCC_VERSION=4.8.1
+export CYUSB_ROOT=$HOME/Cypress/cyusb_linux_1.0.4
+```
+ * `. ~/.bashrc`
+ * Optional if you want to build the firmware:
+   * `cd fx3fun/testproject/USBIsoSource`
+   * `make`
+   * cp ?????? TODO: How to do firmware? BIG TODO: No, really how do you actually make the firmware?-
+   * `cd ../../`
+ * `cd cyprflash`
+ * `make`
+ * Hold the PMODE jumper shorted.
+ * `sudo ./cyprflash  -i -f streaming_image.img`
+ * `cd ..`
+ * Reboot board, make sure it's up:
+   * `lsusb -vv -d 04b4:00f1`
+ * ISO Test
+   * `cd isotest`
+   * 
+   
+
 # Licensing
 
 Though everything I am writing may be licensed under the MIT/x11 license OR the NewBSD license (Both of which are compaible with the GPL/LGPL/AFL), there remain some questions about compiling against the Cypress API.  I am still looking into this but hope to clear up questions regarding this soon.
@@ -42,7 +81,6 @@ Untar contents of all .tar.gz's embedded in the main .tar.gz downloaded to ~/Cyp
 Add to .bashrc, the following:
 
 ```
-export IDF_PATH=~/esp/esp-idf
 export PATH=$PATH:$HOME/Cypress/arm-2013.11/bin
 export FX3_INSTALL_PATH=$HOME/Cypress/cyfx3sdk
 export ARMGCC_INSTALL_PATH=$HOME/Cypress/arm-2013.11

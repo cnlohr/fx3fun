@@ -1,7 +1,7 @@
 all : isotest recstream
 
 LCYPRIO:=../libcyprio
-CFLAGS:=-I$(LCYPRIO) -Os
+CFLAGS:=-I$(LCYPRIO) -O1 -g
 LDFLAGS:=-lusb-1.0 -lpthread
 
 CYPRIO:=$(LCYPRIO)/libcyprio.c $(LCYPRIO)/libcyprio_util.c

@@ -1,4 +1,4 @@
-#  Copyright Cypress Semiconductor Corporation, 2010-2011,
+#  Copyright Cypress Semiconductor Corporation, 2010-2018,
 #  All Rights Reserved
 #  UNPUBLISHED, LICENSED SOFTWARE.
 #

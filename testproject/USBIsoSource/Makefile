@@ -14,7 +14,7 @@
 ## installation root directory path.
 ##
 
-FX3FWROOT=../../..
+FX3FWROOT=../../../cyfx3sdk
 
 all:compile
 

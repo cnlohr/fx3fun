@@ -2,7 +2,7 @@
  ## Cypress FX3 Firmware Source File (cyfxtx.c)
  ## ===========================
  ##
- ##  Copyright Cypress Semiconductor Corporation, 2010-2014,
+ ##  Copyright Cypress Semiconductor Corporation, 2010-2018,
  ##  All Rights Reserved
  ##  UNPUBLISHED, LICENSED SOFTWARE.
  ##
@@ -38,7 +38,8 @@
 #include <cyu3error.h>
 #include <cyfxversion.h>
 
-#if ((CYFX_VERSION_MINOR >= 3) && (CYFX_VERSION_PATCH >= 3))
+/* Memory error detection is supported in SDK 1.3.3 and later. */
+#if ((CYFX_VERSION_MINOR > 3) || ((CYFX_VERSION_MINOR == 3) && (CYFX_VERSION_PATCH >= 3)))
 #define CYFXTX_ERRORDETECTION   1
 #else
 #undef CYFXTX_ERRORDETECTION
@@ -566,14 +567,14 @@ CyU3PMemCopy (
             src   -= 8;
             count -= 8;
 
-            dest[0] = src[0];
-            dest[1] = src[1];
-            dest[2] = src[2];
-            dest[3] = src[3];
-            dest[4] = src[4];
-            dest[5] = src[5];
-            dest[6] = src[6];
             dest[7] = src[7];
+            dest[6] = src[6];
+            dest[5] = src[5];
+            dest[4] = src[4];
+            dest[3] = src[3];
+            dest[2] = src[2];
+            dest[1] = src[1];
+            dest[0] = src[0];
         }
 
         while (count > 0)
