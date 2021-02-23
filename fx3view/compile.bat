@@ -1,0 +1,1 @@
+C:\tcc\tcc fx3view.c ../libcyprio/libcyprio.c -lsetupapi -lopengl32 -lgdi32 -luser32 -I../libcyprio -Irawdraw -DTCC -DWINDOWS -DCNFGOGL -DNOSQRT

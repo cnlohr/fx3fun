@@ -24,7 +24,7 @@
 <Settings>
 <Setting name="GPIF2_OutputName" value="cyfxgpif2config" />
 <Setting name="GPIF2_OutputLocation" value=".\" />
-<Setting name="GPIF2_Template" value="C:\Program Files (x86)\Cypress\EZ-USB FX3 SDK\1.3\GPIFII Designer\inputs\outputtemplates\cygpif2cheadertemplate.tpl" />
+<Setting name="GPIF2_Template" value="C:\Tools\Cypress\EZ-USB FX3 SDK\1.3\GPIFII Designer\inputs\outputtemplates\cygpif2cheadertemplate.tpl" />
 </Settings>
 </CyGuid_7d237aff-d944-11da-aaba-00164119d63b>
 </CyXmlSerializer>

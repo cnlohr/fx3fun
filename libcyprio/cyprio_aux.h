@@ -64,13 +64,18 @@
 	#define SPDRP_DRIVER	9
 	#define FILE_DEVICE_KEYBOARD            0x0000000b
 	#define METHOD_OUT_DIRECT                 2
+	
+#if 0
+	//In case you find a platform which needs this.
 	enum
-	{ FILE_ANY_ACCESS			= 0x00000000UL,
+	{
+		FILE_ANY_ACCESS			    = 0x00000000UL,
 		FILE_SPECIAL_ACCESS			= FILE_ANY_ACCESS,
 		FILE_READ_ACCESS			= 0x00000001UL,
 		FILE_WRITE_ACCESS			= 0x00000002UL
 	};
 	#define CTL_CODE(t,f,m,a) (((t)<<16)|((a)<<14)|((f)<<2)|(m))
+#endif
 
 	
 	#define FILE_DEVICE_UNKNOWN             0x00000022	

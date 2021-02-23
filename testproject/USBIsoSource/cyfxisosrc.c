@@ -258,11 +258,11 @@ CyFxIsoSrcApplnStart (
     //dmaCfg.size          *= CY_FX_ISO_BURST;//XXX CNL This should be DMA_OUT_BUF_SIZE shouldn't it?
     //dmaCfg.size           = DMA_IN_BUF_SIZE;
     dmaCfg.size           = 32768;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
-    dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
-    dmaCfg.prodSckId      = CY_FX_PRODUCER_PPORT_SOCKET;
+    dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT; //3
+    dmaCfg.prodSckId      = CY_U3P_PIB_SOCKET_0;
     dmaCfg.consSckId      = CY_FX_EP_CONSUMER_SOCKET;
     dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Is this right?  Changing it doesn't seem to effect anything.
-    dmaCfg.notification   = 0xffffff; //CY_U3P_DMA_CB_CONS_EVENT;
+    dmaCfg.notification   = 0;//0xffffff; //CY_U3P_DMA_CB_CONS_EVENT;
     dmaCfg.cb             = DMACallback ; //This never seems to be called.  Could it need CY_U3P_DMA_TYPE_AUTO_SIGNAL?
     dmaCfg.prodHeader     = 0;
     dmaCfg.prodFooter     = 0;
@@ -278,23 +278,20 @@ CyFxIsoSrcApplnStart (
 
     CyU3PDmaMultiChannelConfig_t dmaCfg;
     memset( (void*)&dmaCfg, 0, sizeof( dmaCfg ) );
-    dmaCfg.size            = 32768;//Seems to work here and 32768, but smaller values seem to drop data, a lot.
+    dmaCfg.size            = 32768;//Seems to work here and 16384, but smaller values seem to drop data, a lot.
      dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
      dmaCfg.prodSckId[0]   = CY_U3P_PIB_SOCKET_0;
      dmaCfg.prodSckId[1]   = CY_U3P_PIB_SOCKET_1;
      dmaCfg.validSckCount  = 2;
      dmaCfg.consSckId[0]   = CY_FX_EP_CONSUMER_SOCKET;
      dmaCfg.dmaMode        = CY_U3P_DMA_MODE_BYTE; //Is this right?  Changing it doesn't seem to effect anything.
-     dmaCfg.notification   = CY_U3P_DMA_CB_PROD_EVENT; //CY_U3P_DMA_CB_CONS_EVENT;
-     dmaCfg.cb             = DMACallback ; //This never seems to be called.  Could it need CY_U3P_DMA_TYPE_AUTO_SIGNAL?
+     dmaCfg.notification   = 0;//CY_U3P_DMA_CB_PROD_EVENT; //CY_U3P_DMA_CB_CONS_EVENT;
+     dmaCfg.cb             = 0; //DMACallback; //This never seems to be called.  Could it need CY_U3P_DMA_TYPE_AUTO_SIGNAL?
      dmaCfg.prodHeader     = 0;
      dmaCfg.prodFooter     = 0;
      dmaCfg.consHeader     = 0;
      dmaCfg.prodAvailCount = 0;
-
-
     apiRetStatus = CyU3PDmaMultiChannelCreate (&glChHandleIsoSrc, CY_U3P_DMA_TYPE_AUTO_MANY_TO_ONE, &dmaCfg);
-
     CyU3PGpifSocketConfigure(0,CY_U3P_PIB_SOCKET_0,1,CyTrue,1);
     CyU3PGpifSocketConfigure(1,CY_U3P_PIB_SOCKET_1,1,CyTrue,1);
 #endif
@@ -625,7 +622,7 @@ CyFxIsoSrcApplnInit (void)
     //CyU3PGpioSimpleConfig_t gpioConfig;
     //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-    pibClock.clkDiv      = 4; //~400 MHz / 4.
+    pibClock.clkDiv      = 8; //~400 MHz / 4.  or 400 / 8
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse; //Adds 0.5 to divisor
     pibClock.isDllEnable = CyTrue;	//For async or master-mode

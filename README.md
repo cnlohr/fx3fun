@@ -40,7 +40,8 @@ export CYUSB_ROOT=$HOME/Cypress/cyusb_linux_1.0.4
  * Optional if you want to build the firmware:
    * `cd fx3fun/testproject/USBIsoSource`
    * `make`
-   * cp ?????? TODO: How to do firmware? BIG TODO: No, really how do you actually make the firmware?-
+   * cp ?????? TODO: How to do firmware? BIG TODO: No, really how do you actually make the firmware?  
+   * On Windows it looks like it uses `elf2img.exe`
    * `cd ../../`
  * `cd cyprflash`
  * `make`

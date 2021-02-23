@@ -1,8 +1,6 @@
 /*
 	Tool to test Cypress FX3 isochronous transfers using the stream test firmware
-	(C) 2017 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
-	Tested on Windows, working full functionality 12/30/2017
-	Tested on Linux, working full functionality 7/22/2018
+	(C) 2017-2020 C. Lohr, under the MIT-x11 or NewBSD License.  You decide.
 */
 
 #include <stdio.h>
@@ -40,13 +38,16 @@ void TickCypr()
 
 void * TickThread( void * v )
 {
+	TickCypr();
 	while(1)
 	{
-		TickCypr();
 		OGSleep(1);
 	}
 }
 
+uint16_t * datalog;
+int capsize;
+int second_in;
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
 {
 	bytes += length;
@@ -55,25 +56,77 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 	//printf( "%d %02x %02x\n", length, data[0], data[100] );
 	if( Last + 1 < Now )
 	{
-		printf( "Got %.3f kB/s %d\n", bytes/1000.0, length );
-//		int j;
-//		for( j = 0; j < length; j += 8192 )
-//		{
-//			printf( "[%02x %02x]", data[j+0], data[j+1] );
-//		}
+		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000.0, data[0], data[1] );
 		Last++;
 		bytes = 0;
-
+		second_in = 1;
 	}
+	if( !second_in ) return 0;
 
-	int j;
-	for( j = 0; j < length; j += 8192 )
+	static int tlen;
+	int tocopy = length;
+	if( length + tlen > capsize )
 	{
-		if( data[j] == 0 )
+		tocopy = capsize - tlen;
+	}
+	memcpy( ((uint8_t*)datalog)+tlen, data, tocopy );
+	tlen += tocopy;
+
+	if( tlen >= capsize )
+	{
+		printf( "CAPTURED\n" );
+		int confidence;
+		int last = 0;
+		int lr = 0;
+		int lastcount = 0;
+		FILE * f = fopen( "testdata.txt", "w" );
+		int j;
+		int good = 0, total = tlen/2;
+		for( j = 0; j < tlen/2; j++ )
 		{
-			printf( "Zero at: %d\n",  j );
-			return 0;
+			//Spurious 0 set?  Skip.
+			uint16_t d = datalog[j];
+			
+			if( !d) { printf( "BAD %d %d\n", j	, j / 8192 ); }
+			good++;
+#if 1
+			fprintf( f, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+				lr,
+				(d & 1)?1:0,
+				(d & 2)?1:0,
+				(d & 4)?1:0,
+				(d & 8)?1:0,
+				(d & 16)?1:0,
+				(d & 32)?1:0,
+				(d & 64)?1:0,
+				(d & 128)?1:0 );
+
+			if( (d&4) != last )
+			{
+				confidence--;
+				if( confidence < 1 )
+				{
+					last = (d&4);
+				//	if( lastcount < 128 || ( lastcount > 135 && lastcount < 390 ) || lastcount > 397 )
+						fprintf( f, "SPLIT: %d  ", lastcount );
+					lastcount = 1;
+				}
+			}
+			else
+			{
+				confidence = 2;
+				lastcount++;
+			}
+
+#elif 0
+			fprintf( f, "%d\n", 
+				(d & 8)?1:0 );
+
+#else
+#endif
 		}
+		printf( "%d/%d\n", good, total );
+		exit(0);
 	}
 	return 0;
 }
@@ -90,6 +143,7 @@ void CtrlCSignal()
 
 int main()
 {
+	datalog = malloc( capsize = 1024*1024*8 );
 	printf( "Test streamer\n" );
 #if !defined(WINDOWS) && !defined(WIN32)
 	signal(SIGINT, CtrlCSignal);

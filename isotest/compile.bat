@@ -6,3 +6,4 @@ del teststream.exe recstream.exe
 
 %TCC% -o teststream.exe teststream.c ../libcyprio/libcyprio.c os_generic.c %CFLAGS% %LDFLAGS%
 %TCC% -o recstream.exe recstream.c ../libcyprio/libcyprio.c os_generic.c %CFLAGS% %LDFLAGS%
+%TCC% -o testtdm.exe testtdm.c ../libcyprio/libcyprio.c os_generic.c %CFLAGS% %LDFLAGS%

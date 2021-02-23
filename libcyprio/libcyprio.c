@@ -669,6 +669,7 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 		fprintf( stderr, "Warning: Too many config desriptors found (%d > %d)\n", configs, MAX_CONFIG_DESCRIPTORS );
 		configs = MAX_CONFIG_DESCRIPTORS;
 	}
+	printf( "Found %d configs\n", configs );
 	for ( i=0; i < configs; i++)
 	{
 		if( CyprIOGetCfgDescriptor( ths, i ) )
@@ -676,7 +677,7 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 			DEBUGINFO( "Could not get config %d\n", i );
 			return -1;
 		}
-		//printf( "Got Config (length %d): (Value: %d)\n", ths->USBConfigDescriptors[i]->wTotalLength, ths->USBConfigDescriptors[i]->bConfigurationValue );
+		printf( "Got Config (length %d): (Value: %d)\n", ths->USBConfigDescriptors[i]->wTotalLength, ths->USBConfigDescriptors[i]->bConfigurationValue );
 		int k;
 		uint8_t * p = (uint8_t*)ths->USBConfigDescriptors[i];
 //		for( k = 0; k < ths->USBConfigDescriptors[i]->wTotalLength; k++)
@@ -716,7 +717,7 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	//This code mimics what's going on in CCyUSBConfig::CCyUSBConfig(...).
 	if( !ths->USBConfigDescriptors[use_config] )
 	{
-		DEBUGINFO( "Config %d does not exist\n", use_config );
+		DEBUGINFO( "Config %d does not exist (Out of %d expected)\n", use_config, nrdesc );
 		return -1;
 	}
 	

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <libcyprio.h>
 #include "os_generic.h"
+#include <time.h>
 
 #if defined(WINDOWS) || defined( WIN32 )
 #include <windows.h>
@@ -17,7 +18,8 @@
 #include <unistd.h>
 #endif
 
-#include <CNFGFunctions.h>
+#define CNFG_IMPLEMENTATION
+#include <CNFG.h>
 
 void * TickThread( void * v );
 
@@ -143,14 +145,24 @@ void * CircularRxThread( void * v )
 #endif
 }
 
-#if !defined(WINDOWS) && !defined(WIN32)
 void ExitApp()
 {
 	eps.shutdown = 1;
-	usleep(100000);
+	OGUSleep(100000);
 	CyprIODestroy( &eps );
 }
-#endif
+
+void CNFGDrawBox( short x1, short y1, short x2, short y2 )
+{
+	uint32_t Col = CNFGLastColor;
+	CNFGColor( CNFGBGColor );
+	CNFGTackRectangle( x1, y1, x2, y2 );
+	CNFGColor( Col );
+	CNFGTackSegment( x1, y1, x2, y1 );
+	CNFGTackSegment( x2, y1, x2, y2 );
+	CNFGTackSegment( x2, y2, x1, y2 );
+	CNFGTackSegment( x1, y2, x1, y1 );
+}
 
 void DrawFrame()
 {
@@ -162,7 +174,7 @@ void DrawFrame()
 	struct SetBuffer * sb = &Buffers[DisplayBuffer];
 
 
-	CNFGBGColor = 0x400000;
+	CNFGBGColor = 0x000040;
 	CNFGHandleInput();
 	CNFGClearFrame();
 	CNFGColor( 0xffffff );
@@ -190,7 +202,7 @@ void DrawFrame()
 	for( i = 0; i < 16; i++ )
 	{
 		int mask = 1<<i;
-		CNFGDialogColor = (LastSample&mask)?0x0000ff:0x000000;
+		CNFGBGColor = (LastSample&mask)?0xff0000:0x000000;
 		int sy = 5;
 		int sz = 20;
 		int sx = w - sz * 16 - sy;
@@ -250,7 +262,7 @@ void DrawFrame()
 	double dlay = LastTime + 0.017 - NewNow;
 	if( dlay > 0 )
 	{
-		usleep( dlay*1000000 );
+		OGUSleep( dlay*1000000 );
 	}
 	if( dlay < 0 )
 	{
@@ -265,8 +277,11 @@ void DrawFrame()
 
 int main()
 {
+#if defined(WIN32) || defined( WINDOWS )
+	atexit( ExitApp );
+#else
 	signal(SIGINT, ExitApp);
-
+#endif
 	int r = CyprIOConnect( &eps, 0, 0x04b4, 0x00f1 );
 	if( r )
 	{
@@ -329,7 +344,7 @@ struct Button
 
 int Pause( struct Button * btn )
 {
-	btn->bgcolor = 0x0000ff;
+	btn->bgcolor = 0xff0000;
 	btn->id = !btn->id;
 	DisableMask = btn->id;
 	return 0;
@@ -410,7 +425,7 @@ void DrawButtons()
 		if( re > 255 ) re = 255;
 		if( ge > 255 ) ge = 255;
 		if( be > 255 ) be = 255;
-		CNFGDialogColor = re | (ge<<8) | (be<<16);
+		CNFGBGColor = re | (ge<<8) | (be<<16);
 		b->focus -= 0.04;
 		if( b->focus < 0 ) b->focus = 0;
 
