@@ -59,9 +59,9 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		printf( "Got %.3f kB/s [%02x %02x]\n", bytes/1000.0, data[0], data[1] );
 		Last++;
 		bytes = 0;
-		second_in = 1;
+		second_in++;
 	}
-	if( !second_in ) return 0;
+	if( second_in < 2 ) return 0;
 
 	static int tlen;
 	int tocopy = length;
@@ -85,7 +85,10 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		for( j = 0; j < tlen/2; j++ )
 		{
 			//Spurious 0 set?  Skip.
-			uint16_t d = datalog[j];
+			int imark = j/16384;
+			//int selected = (imark&1)?(j-16384):(j+16384);
+			int selected = j;
+			uint16_t d = datalog[selected];
 			
 			if( !d) { printf( "BAD %d %d\n", j	, j / 8192 ); }
 			good++;
@@ -107,7 +110,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 				if( confidence < 1 )
 				{
 					last = (d&4);
-				//	if( lastcount < 128 || ( lastcount > 135 && lastcount < 390 ) || lastcount > 397 )
+					if( lastcount < 124 || ( lastcount > 135 && lastcount < 382 ) || lastcount > 397 )
 						fprintf( f, "SPLIT: %d  ", lastcount );
 					lastcount = 1;
 				}
@@ -123,6 +126,20 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 				(d & 8)?1:0 );
 
 #else
+			//if( ( j & 16383 ) > 10 && ( j & 16383 ) < 15)
+			{
+				fprintf( f, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+				j/16384,
+				(d & 1)?1:0,
+				(d & 2)?1:0,
+				(d & 4)?1:0,
+				(d & 8)?1:0,
+				(d & 16)?1:0,
+				(d & 32)?1:0,
+				(d & 64)?1:0,
+				(d & 128)?1:0 );
+
+			}
 #endif
 		}
 		printf( "%d/%d\n", good, total );
