@@ -1,8 +1,6 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <GPIFIITimingSimulation version="1">
-  <Clock>100</Clock>
+  <Clock>200</Clock>
   <BufferSize>512</BufferSize>
   <WaterMark>0</WaterMark>
-  <Scenario Name="SCENARIO0" CurrentThread="Thread0" />
-  <Scenario Name="SCENARIO1" CurrentThread="Thread0" />
 </GPIFIITimingSimulation>

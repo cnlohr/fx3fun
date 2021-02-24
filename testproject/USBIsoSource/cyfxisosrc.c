@@ -278,7 +278,7 @@ CyFxIsoSrcApplnStart (
 
     CyU3PDmaMultiChannelConfig_t dmaCfg;
     memset( (void*)&dmaCfg, 0, sizeof( dmaCfg ) );
-    dmaCfg.size            = 32768;//Seems to work here and 16384, but smaller values seem to drop data, a lot.
+    dmaCfg.size            = MULTI_CHANNEL_XFER_SIZE;//Seems to work here and 16384, but smaller values seem to drop data, a lot.
      dmaCfg.count          = CY_FX_ISOSRC_DMA_BUF_COUNT;
      dmaCfg.prodSckId[0]   = CY_U3P_PIB_SOCKET_0;
      dmaCfg.prodSckId[1]   = CY_U3P_PIB_SOCKET_1;
@@ -313,60 +313,6 @@ CyFxIsoSrcApplnStart (
         CyU3PDebugPrint (4, "CyU3PDmaChannelSetXfer Failed, Error code = %d\n", apiRetStatus);
         CyFxAppErrorHandler(apiRetStatus);
     }
-
-#if 0
-    /* I don't think we want to do this in our case. */
-
-    /* Now preload all buffers in the MANUAL_OUT pipe with the required data. */
-    for (index = 0; index < CY_FX_ISOSRC_DMA_BUF_COUNT; index++)
-    {
-        apiRetStatus = CyU3PDmaChannelGetBuffer (&glChHandleIsoSrc, &buf_p, CYU3P_NO_WAIT);
-        if (apiRetStatus != CY_U3P_SUCCESS)
-        {
-            CyU3PDebugPrint (4, "CyU3PDmaChannelGetBuffer failed, Error code = %d\n", apiRetStatus);
-            CyFxAppErrorHandler(apiRetStatus);
-        }
-        CyU3PMemSet (buf_p.buffer, CY_FX_ISOSRC_PATTERN, buf_p.size);
-        apiRetStatus = CyU3PDmaChannelCommitBuffer (&glChHandleIsoSrc, buf_p.size, 0);
-        if (apiRetStatus != CY_U3P_SUCCESS)
-        {
-            CyU3PDebugPrint (4, "CyU3PDmaChannelCommitBuffer failed, Error code = %d\n", apiRetStatus);
-            CyFxAppErrorHandler(apiRetStatus);
-        }
-    }
-#endif
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////Added by Charles
-
-    /* Create a DMA AUTO channel for SRAM -> USB data transfer. */
-
-    /* Set DMA channel transfer size. */
-
-/*
-    apiRetStatus = CyU3PDmaChannelSetXfer (&glChHandleSRAMPtoU, CY_FX_SRAM_DMA_RX_SIZE);
-    if (apiRetStatus != CY_U3P_SUCCESS)
-    {
-        CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PDmaChannelSetXfer Failed, Error code = %d\r\n", apiRetStatus);
-        CyFxAppErrorHandler (apiRetStatus);
-    }
-*/
-
-    /* Start the GPIF state machine */
-    //apiRetStatus = CyU3PGpifSMStart (STARTNULL, ALPHA_STARTNULL);
-
-
-#if 0
-    apiRetStatus = CyU3PGpifSMStart (STARTRX2, ALPHA_STARTRX2);
-    if (apiRetStatus != CY_U3P_SUCCESS)
-    {
-        CyU3PDebugPrint (CY_FX_DEBUG_PRIORITY, "CyU3PGpifSMStart Failed, Error code = %d\r\n", apiRetStatus);
-        CyFxAppErrorHandler (apiRetStatus);
-    }
-#endif
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
 
 
     /* Update the flag so that the application thread is notified of this. */
@@ -473,7 +419,7 @@ CyFxIsoSrcApplnUSBSetupCB (
             CyU3PUsbSendEP0Data (12,(uint8_t*) sendback);  //Sends back "hello"
             if( KeepDataAlive == 0 )
             {
-            	CyU3PGpifSMStart (STARTRX2, ALPHA_STARTRX2);
+            	CyU3PGpifSMStart (START, ALPHA_START);
             }
             KeepDataAlive = 12000*2; //~1.9 seconds.
         }
@@ -622,7 +568,7 @@ CyFxIsoSrcApplnInit (void)
     //CyU3PGpioSimpleConfig_t gpioConfig;
     //CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-    pibClock.clkDiv      = 8; //~400 MHz / 4.  or 400 / 8
+	pibClock.clkDiv = 8; //~400 MHz / 4.  or 400 / 8
     pibClock.clkSrc      = CY_U3P_SYS_CLK;
     pibClock.isHalfDiv   = CyFalse; //Adds 0.5 to divisor
     pibClock.isDllEnable = CyTrue;	//For async or master-mode
@@ -947,7 +893,7 @@ main (void)
 
     ///Confusing but seems to set it up so the SYS_CLK can be 400 MHz. from https://community.cypress.com/thread/21688
     CyU3PSysClockConfig_t clkCfg = {
-                            CyTrue,
+                            CyTrue, //If true, clock is 403.2 MHz, False, 384 MHz.
                             2, 2, 2,
                             CyFalse,
                             CY_U3P_SYS_CLK

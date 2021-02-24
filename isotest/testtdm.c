@@ -38,14 +38,14 @@ void TickCypr()
 
 void * TickThread( void * v )
 {
-	TickCypr();
 	while(1)
 	{
 		OGSleep(1);
+		TickCypr();
 	}
 }
 
-uint16_t * datalog;
+uint8_t * datalog;
 int capsize;
 int second_in;
 int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t length )
@@ -61,7 +61,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		bytes = 0;
 		second_in++;
 	}
-	if( second_in < 2 ) return 0;
+	//if( second_in < 2 ) return 0;
 
 	static int tlen;
 	int tocopy = length;
@@ -86,15 +86,18 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 		{
 			//Spurious 0 set?  Skip.
 			int imark = j/16384;
-			//int selected = (imark&1)?(j-16384):(j+16384);
-			int selected = j;
-			uint16_t d = datalog[selected];
+			int selected;
+			//selected = (!(imark&1))?(j-32768):(j+32768);
+			selected = j;
+			if( selected < 0 ) selected = 0;
+			uint8_t d = datalog[selected];
 			
-			if( !d) { printf( "BAD %d %d\n", j	, j / 8192 ); }
+			if( (selected&0x3fff) == 0 && !d) { printf( "BAD %d %d\n", j	, j / 16384 ); }
 			good++;
 #if 1
-			fprintf( f, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
-				lr,
+			if( (j & 0x3fff) == 30 ) printf( "%d, %d\n", j/16384, (datalog[selected+1]^d)>>6 );
+			fprintf( f, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", 
+				j/16384, (datalog[selected+1]^d)>>6,
 				(d & 1)?1:0,
 				(d & 2)?1:0,
 				(d & 4)?1:0,
@@ -110,7 +113,7 @@ int callback( void * id, struct CyprIOEndpoint * ep, uint8_t * data, uint32_t le
 				if( confidence < 1 )
 				{
 					last = (d&4);
-					if( lastcount < 124 || ( lastcount > 135 && lastcount < 382 ) || lastcount > 397 )
+					if( lastcount < 59 || ( lastcount > 63 && lastcount < 180 ) || lastcount > 185 )
 						fprintf( f, "SPLIT: %d  ", lastcount );
 					lastcount = 1;
 				}
