@@ -111,6 +111,10 @@ const uint8_t CyFxUSBDeviceQualDscr[] __attribute__ ((aligned (32))) =
     0x00                            /* Reserved */
 };
 
+#define HI8(x)  ((x)>>8)
+#define LO8(x)  ((x)&0xFF)
+#define LOHI(x)  LO8(x), HI8(x)
+
 /* Standard super speed configuration descriptor */
 const uint8_t CyFxUSBSSConfigDscr[] __attribute__ ((aligned (32))) =
 {
@@ -151,7 +155,7 @@ const uint8_t CyFxUSBSSConfigDscr[] __attribute__ ((aligned (32))) =
     CY_U3P_USB_ENDPNT_DESCR,        /* Endpoint descriptor type */
     CY_FX_EP_CONSUMER,              /* Endpoint address and description */
     CY_U3P_USB_EP_ISO,              /* ISO endpoint type */
-    0x00,0x04,                      /* Max packet size = 1024 bytes */
+    LOHI(MAX_PACKET_SIZE),                      /* Max packet size = 1024 bytes */
     0x01,                           /* Servicing interval for data transfers : 1 uFrame */
 
     /* Super speed endpoint companion descriptor. */
@@ -159,7 +163,7 @@ const uint8_t CyFxUSBSSConfigDscr[] __attribute__ ((aligned (32))) =
     CY_U3P_SS_EP_COMPN_DESCR,       /* SS endpoint companion descriptor type */
     (CY_FX_ISO_BURST - 1),          /* Max no. of packets in a burst(0-15) - 0: burst 1 packet at a time */
     0,                              /* Only one 16KB burst per micro-frame. */
-    0x00, (0x04 * CY_FX_ISO_BURST), /* Bytes per interval : 1024 * 1 * burst */
+    LOHI(MAX_PACKET_SIZE*CY_FX_ISO_BURST), /* Bytes per interval : 1024 * 1 * burst */
 
     /* Interface 0, Alt. Setting 2: One ISO IN endpoint with multiple bursts per uFrame. */
     0x09,                           /* Descriptor size */
@@ -177,7 +181,7 @@ const uint8_t CyFxUSBSSConfigDscr[] __attribute__ ((aligned (32))) =
     CY_U3P_USB_ENDPNT_DESCR,        /* Endpoint descriptor type */
     CY_FX_EP_CONSUMER,              /* Endpoint address and description */
     CY_U3P_USB_EP_ISO,              /* ISO endpoint type */
-    0x00,0x04,                      /* Max packet size = 1024 bytes */
+    LOHI(MAX_PACKET_SIZE),                      /* Max packet size = 1024 bytes */
     0x01,                           /* Servicing interval for data transfers : 1 uFrame */
 
     /* Super speed endpoint companion descriptor. */
@@ -185,7 +189,7 @@ const uint8_t CyFxUSBSSConfigDscr[] __attribute__ ((aligned (32))) =
     CY_U3P_SS_EP_COMPN_DESCR,       /* SS endpoint companion descriptor type */
     (CY_FX_ISO_BURST - 1),          /* Max no. of packets in a burst(0-15) - 0: burst 1 packet at a time */
     (CY_FX_ISO_PKTS - 1),           /* Mult.: Max number of packets : CY_FX_ISO_PKTS */
-    0x00,(0x04 * CY_FX_ISO_PKTS * CY_FX_ISO_BURST), /* Bytes per interval : 1024 * isoPkts * burst */
+    LOHI(MAX_PACKET_SIZE * CY_FX_ISO_PKTS * CY_FX_ISO_BURST), /* Bytes per interval : 1024 * isoPkts * burst */
 };
 
 /* Standard high speed configuration descriptor */
@@ -228,7 +232,7 @@ const uint8_t CyFxUSBHSConfigDscr[] __attribute__ ((aligned (32))) =
     CY_U3P_USB_ENDPNT_DESCR,        /* Endpoint descriptor type */
     CY_FX_EP_CONSUMER,              /* Endpoint address and description */
     CY_U3P_USB_EP_ISO,              /* ISO endpoint type */
-    0x00,(0x04 | ((CY_FX_ISO_PKTS - 1) << 3)),  /* Max packet size = 1024 bytes, mult CY_FX_ISO_PKTS */
+    LOHI(1024),  /* Max packet size = 1024 bytes, mult CY_FX_ISO_PKTS */
     0x01                            /* Servicing interval for data transfers */
 };
 

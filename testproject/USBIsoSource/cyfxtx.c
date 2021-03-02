@@ -2,7 +2,7 @@
  ## Cypress FX3 Firmware Source File (cyfxtx.c)
  ## ===========================
  ##
- ##  Copyright Cypress Semiconductor Corporation, 2010-2018,
+ ##  Copyright Cypress Semiconductor Corporation, 2010-2014,
  ##  All Rights Reserved
  ##  UNPUBLISHED, LICENSED SOFTWARE.
  ##
@@ -357,7 +357,7 @@ CyU3PMemAlloc (
         return ret_p;
     }
 
-    return (NULL);
+    return (0);
 }
 
 /* Function    : CyU3PMemFree
@@ -550,7 +550,7 @@ CyU3PMemSet (
  */
 void
 CyU3PMemCopy (
-        uint8_t  *dest, 
+        uint8_t  *dest,
         uint8_t  *src,
         uint32_t  count)
 {
@@ -629,10 +629,10 @@ CyU3PMemCopy (
  * Return Value : 0 if the memory blocks are identical.
  *                Difference between first non-identical byte in case of deviation.
  */
-int32_t 
+int32_t
 CyU3PMemCmp (
         const void* s1,
-        const void* s2, 
+        const void* s2,
         uint32_t n)
 {
     const uint8_t *ptr1 = (const uint8_t *)s1, *ptr2 = (const uint8_t *)s2;
@@ -643,10 +643,10 @@ CyU3PMemCmp (
         {
             return *ptr1 - *ptr2;
         }
-        
+
         ptr1++;
         ptr2++;
-    }  
+    }
 
     return 0;
 }

@@ -134,8 +134,20 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		//Got the data.  call our callback.
 		if( bytes )
 		{
-			if( callback( id, ep, buffers[i], bytes ) )
-				break;
+			PSINGLE_TRANSFER pst = pTransfers[i];
+			int pk;
+			uint8_t * ptrbase = buffers[i];
+			for( pk = 0; pk < pkts; pk++ )
+			{
+				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;
+				if( iso->Length )
+				{
+					if( callback( id, ep, ptrbase, iso->Length ) )
+						break;
+				}
+				ptrbase += ep->MaxPktSize;
+			}
+			if( pk != pkts ) break;
 		}
 
 		//Hook that packet back up to our chain.
