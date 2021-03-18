@@ -601,6 +601,8 @@ void CyFxIsoSrcApplnInit(void) {
 	/* Register a callback to handle LPM requests from the USB 3.0 host. */
 	CyU3PUsbRegisterLPMRequestCallback(CyFxIsoSrcApplnLPMRqtCB);
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Setting the USB Enumeration descriptors\r\n");
+
 	/* Set the USB Enumeration descriptors */
 
 	/* Super speed device descriptor. */
@@ -673,6 +675,8 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "MIDDLE\r\n");
+
 	/* String descriptor 0 */
 	apiRetStatus = CyU3PUsbSetDesc(CY_U3P_USB_SET_STRING_DESCR, 0,
 			(uint8_t *) CyFxUSBStringLangIDDscr);
@@ -703,6 +707,8 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Connecting\r\n");
+
 	/* Connect the USB Pins with super speed operation enabled. */
 	apiRetStatus = CyU3PConnectState(CyTrue, CyTrue);
 	if (apiRetStatus != CY_U3P_SUCCESS) {
@@ -710,6 +716,8 @@ void CyFxIsoSrcApplnInit(void) {
 				apiRetStatus);
 		CyFxAppErrorHandler(apiRetStatus);
 	}
+
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "CyFxIsoSrcApplnInit Complete\r\n");
 }
 
 /* Entry function for the IsoSrcAppThread. */
