@@ -81,7 +81,7 @@
 	#define FILE_DEVICE_UNKNOWN             0x00000022	
 	
 		
-	BOOL WINAPI DeviceIoControl(
+	BOOL WINAPI __declspec(dllimport) DeviceIoControl(
 		HANDLE       hDevice,
 		DWORD        dwIoControlCode,
 		LPVOID       lpInBuffer,
