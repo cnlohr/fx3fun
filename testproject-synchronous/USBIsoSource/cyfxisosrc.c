@@ -73,6 +73,8 @@ uint32_t glCtrlDat0 = 0; /* bmRequestType + bRequest + wValue from control reque
 uint32_t glCtrlDat1 = 0; /* wIndex + wLength from control request. */
 uint8_t *glEp0Buffer = 0; /* Buffer used to handle vendor specific control requests. */
 
+uint32_t LastOverrunMark;
+
 CyU3PEvent glAppEvent; /* Event group used to defer handling of vendor specific control requests. */
 #define CYFX_ISOAPP_CTRL_TASK   1       /* Deferred event flag indicating pending control request. */
 #define CYFX_ISOAPP_DOUT_RQT    0xD1    /* Example request with OUT data phase. */
@@ -316,11 +318,13 @@ void CyFxIsoSrcApplnStop(void) {
 	//Stop the GPIF bus.
 	CyU3PGpifDisable(0);
 
+#ifdef DMAMULTI
 	CyU3PDmaMultiChannelReset(&glChHandleIsoSrc);
 	/* Flush the endpoint memory */
 	CyU3PUsbFlushEp(CY_FX_EP_CONSUMER);
 	CyU3PUsbResetEp(CY_FX_EP_CONSUMER);
 	CyU3PDmaMultiChannelSetXfer(&glChHandleIsoSrc, 2, CY_U3P_PIB_SOCKET_0);
+#endif
 
 	/* Update the flag so that the application thread is notified of this. */
 	glIsApplnActive = CyFalse;
@@ -399,12 +403,14 @@ uint32_t setupdat1 /* SETUP Data 1 */
 			sendback[0] = 0xaabbccdd;
 			sendback[1] = DataOverrunErrors;
 			sendback[2] = dmaevent;
-			CyU3PUsbSendEP0Data(12, (uint8_t*) sendback);  //Sends back "hello"
+			sendback[3] = LastOverrunMark;
+			CyU3PUsbSendEP0Data(16, (uint8_t*) sendback);  //Sends back "hello"
 			if (KeepDataAlive == 0) {
 				CyFxIsoSrcApplnStart();
 				CyU3PGpifSMStart(START, ALPHA_START);
 			}
-			KeepDataAlive = 1200 * 2;
+			//CAN CONFIRM: VALUE IN THIS DOES NOT DETERMINE WHETHER OR NOT THE OUTPUT IS GOOD.
+			KeepDataAlive = 1200 * 2 * 50;
 		} else if (bRequest == 0xbb) {
 				uint32_t sendback[10];
 				sendback[0] = 0xaabbccdd;
@@ -486,8 +492,9 @@ static void PibEventCallback(CyU3PPibIntrType cbType, uint16_t cbArg) {
 		case CYU3P_PIB_ERR_THR2_WR_OVERRUN:
 		case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
 		case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-			CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "%d\r\n", KeepDataAlive);
+			//CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "%d\r\n", KeepDataAlive);
 			DataOverrunErrors++;
+			LastOverrunMark = KeepDataAlive;
 			if (KeepDataAlive) {
 				KeepDataAlive--;
 				if (KeepDataAlive == 0) {
@@ -537,6 +544,8 @@ void CyFxIsoSrcApplnInit(void) {
 	//CyU3PGpioSimpleConfig_t gpioConfig;
 	//CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "In IsoSrcAppThread_Entry(...)\r\n");
+
 	pibClock.clkDiv = 4; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
 	pibClock.clkSrc = CY_U3P_SYS_CLK;
 	pibClock.isHalfDiv = CyFalse; //Adds 0.5 to divisor
@@ -549,19 +558,6 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
-	/* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
-	apiRetStatus = CyU3PGpifLoad(&CyFxGpifConfig);
-	if (apiRetStatus != CY_U3P_SUCCESS) {
-		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
-				"CyU3PGpifLoad failed, Error Code=%d\r\n", apiRetStatus);
-		CyFxAppErrorHandler(apiRetStatus);
-	}
-
-	/* callback to see if there is any overflow of data on the GPIF II side*/
-	//XXX Why is CYU3P_PIB_ERR_THR0_WR_OVERRUN getting called incessently?
-	// CyU3PPibRegisterCallback (PibEventCallback, 0xfffb ); //Don't warn about CYU3P_PIB_ERR_THR0_WR_OVERRUN.  Seems to cause problems.
-	CyU3PPibRegisterCallback(PibEventCallback, 0xffff); //Well, this seems not to break it?
-	//DataOverrunErrors
 
 	/* Initialize the GPIO module. This is used to update the indicator LED. */
 	gpioClock.fastClkDiv = 2;
@@ -697,6 +693,8 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "PRE\r\n");
+
 	/* String descriptor 2 */
 	apiRetStatus = CyU3PUsbSetDesc(CY_U3P_USB_SET_STRING_DESCR, 2,
 			(uint8_t *) CyFxUSBProductDscr);
@@ -714,8 +712,26 @@ void CyFxIsoSrcApplnInit(void) {
 	if (apiRetStatus != CY_U3P_SUCCESS) {
 		CyU3PDebugPrint(4, "USB Connect failed, Error code = %d\n",
 				apiRetStatus);
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "USB Connect failed, Error code = %d\n",
+				apiRetStatus);
 		CyFxAppErrorHandler(apiRetStatus);
 	}
+
+
+	/* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
+	apiRetStatus = CyU3PGpifLoad(&CyFxGpifConfig);
+	if (apiRetStatus != CY_U3P_SUCCESS) {
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
+				"CyU3PGpifLoad failed, Error Code=%d\r\n", apiRetStatus);
+		CyFxAppErrorHandler(apiRetStatus);
+	}
+
+	/* callback to see if there is any overflow of data on the GPIF II side*/
+	//XXX Why is CYU3P_PIB_ERR_THR0_WR_OVERRUN getting called incessently?
+	// CyU3PPibRegisterCallback (PibEventCallback, 0xfffb ); //Don't warn about CYU3P_PIB_ERR_THR0_WR_OVERRUN.  Seems to cause problems.
+	CyU3PPibRegisterCallback(PibEventCallback, 0xffff); //Well, this seems not to break it?
+	//DataOverrunErrors
+
 
 	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "CyFxIsoSrcApplnInit Complete\r\n");
 }
@@ -729,8 +745,12 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 	/* Initialize the debug module */
 	CyFxIsoSrcApplnDebugInit();
 
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "IsoSrcAppThread_Entry(...)\r\n");
+
 	/* Initialize the ISO loop application */
 	CyFxIsoSrcApplnInit();
+
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CyFxIsoSrcApplnInit(...) done\r\n");
 
 	/* Wait for any vendor specific requests to arrive, and then handle them. */
 	for (;;) {
@@ -840,15 +860,15 @@ void CyFxApplicationDefine(void) {
 
 	/* Create the thread for the application */
 	retThrdCreate = CyU3PThreadCreate(&isoSrcAppThread, /* ISO loop App Thread structure */
-	"21:ISO_SRC_MANUAL__OUT", /* Thread ID and Thread name */
-	IsoSrcAppThread_Entry, /* ISO loop App Thread Entry function */
-	0, /* No input parameter to thread */
-	ptr, /* Pointer to the allocated thread stack */
-	CY_FX_ISOSRC_THREAD_STACK, /* ISO loop App Thread stack size */
-	CY_FX_ISOSRC_THREAD_PRIORITY, /* ISO loop App Thread priority */
-	CY_FX_ISOSRC_THREAD_PRIORITY, /* ISO loop App Thread priority */
-	CYU3P_NO_TIME_SLICE, /* No time slice for the application thread */
-	CYU3P_AUTO_START /* Start the Thread immediately */
+		"21:ISO_SRC_MANUAL__OUT", /* Thread ID and Thread name */
+		IsoSrcAppThread_Entry, /* ISO loop App Thread Entry function */
+		0, /* No input parameter to thread */
+		ptr, /* Pointer to the allocated thread stack */
+		CY_FX_ISOSRC_THREAD_STACK, /* ISO loop App Thread stack size */
+		CY_FX_ISOSRC_THREAD_PRIORITY, /* ISO loop App Thread priority */
+		CY_FX_ISOSRC_THREAD_PRIORITY, /* ISO loop App Thread priority */
+		CYU3P_NO_TIME_SLICE, /* No time slice for the application thread */
+		CYU3P_AUTO_START /* Start the Thread immediately */
 	);
 
 	/* Check the return code */

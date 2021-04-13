@@ -140,10 +140,22 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 			for( pk = 0; pk < pkts; pk++ )
 			{
 				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;
+				
+				//Yurrffff - Bug in Windows - if we have 32768 byte packets we have to flip the sgroups.
 				if( iso->Length )
 				{
-					if( callback( id, ep, ptrbase, iso->Length ) )
+					if( iso->Length > 16384 )
+					{
+						if( callback( id, ep, ptrbase+16384, 16384 ) )
+							break;
+						if( callback( id, ep, ptrbase, iso->Length-16384 ) )
 						break;
+					}
+					else
+					{
+						if( callback( id, ep, ptrbase, iso->Length ) )
+							break;
+					}
 				}
 				ptrbase += ep->MaxPktSize;
 			}
