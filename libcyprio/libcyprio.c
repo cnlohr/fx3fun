@@ -70,16 +70,15 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 	OVERLAPPED ovLapStatus[nrbuffers];
 	uint8_t * buffers[nrbuffers];
 	DWORD buflens[nrbuffers];
+	uint8_t * xmitbuffers[nrbuffers];
+	PSINGLE_TRANSFER pTransfers[nrbuffers];
 	DWORD dwReturnBytes = 0;
 
 	int pkts;
 	pkts = buffersize / ep->MaxPktSize;       // Number of packets implied by buffersize & pktSize
     if (buffersize % ep->MaxPktSize) pkts++;
     int iXmitBufSize = sizeof (SINGLE_TRANSFER) + (pkts * sizeof(ISO_PACKET_INFO));
-	
-	uint8_t * xmitbuffers[nrbuffers];
-	PSINGLE_TRANSFER pTransfers[nrbuffers];
-	
+
 	for( i = 0; i < nrbuffers; i++ )
 	{
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
@@ -107,7 +106,7 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 			&dwReturnBytes,
 			&ovLapStatus[i]);
 	}
-	
+
 	i = 0;
 	do
 	{
@@ -180,7 +179,9 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 	{
 		CloseHandle( ovLapStatus[i].hEvent );
 		free( buffers[i] );
-		free( xmitbuffers[i] );
+		
+		//Somehow these seem automatically freed?
+		//free( xmitbuffers[i] );
 	}
 	return -1;
 }
