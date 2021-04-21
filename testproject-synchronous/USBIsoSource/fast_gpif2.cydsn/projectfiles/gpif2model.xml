@@ -10,7 +10,7 @@
       <InterfaceType>Slave</InterfaceType>
       <CommunicationType>Synchronous</CommunicationType>
       <ClockSource>External</ClockSource>
-      <ClockEdge>Positive</ClockEdge>
+      <ClockEdge>Negative</ClockEdge>
       <Endianness>LittleEndian</Endianness>
       <DataBusWidth>Bit8</DataBusWidth>
       <AddressBuswidth>0</AddressBuswidth>
@@ -121,9 +121,26 @@
         <CounterInterrupt>Mask</CounterInterrupt>
       </Action>
     </State>
+    <State ElementId="STARTSTATE2" StateType="StartState">
+      <DisplayName>RUN</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+    </State>
+    <State ElementId="STATE2" StateType="NormalState">
+      <DisplayName>DO_NOTHING</DisplayName>
+      <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
+      <RepeatCount>0</RepeatCount>
+      <Action ElementId="IN_DATA0" ActionType="IN_DATA">
+        <DataSourceSink>Register</DataSourceSink>
+        <ThreadNumber>Thread0</ThreadNumber>
+        <SampleData>True</SampleData>
+        <WriteDataIntoDataSink>False</WriteDataIntoDataSink>
+      </Action>
+    </State>
     <Transition ElementId="TRANSITION2" SourceState="STATE3" DestinationState="STATE0" Equation="ADDR_CNT_HIT" />
     <Transition ElementId="TRANSITION3" SourceState="STATE0" DestinationState="STATE3" Equation="DATA_CNT_HIT" />
-    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE4" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION5" SourceState="STARTSTATE2" DestinationState="STATE4" Equation="LOGIC_ONE" />
     <Transition ElementId="TRANSITION1" SourceState="STATE4" DestinationState="STATE0" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION4" SourceState="STARTSTATE0" DestinationState="STATE2" Equation="LOGIC_ONE" />
   </StateMachine>
 </GPIFIIModel>

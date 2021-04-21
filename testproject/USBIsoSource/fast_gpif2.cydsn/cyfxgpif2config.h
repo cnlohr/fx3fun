@@ -1,6 +1,6 @@
 /*
  * Project Name: fast_gpif2.cyfx
- * Time : 03/01/2021 22:03:08
+ * Time : 04/15/2021 22:19:32
  * Device Type: FX3
  * Project Type: GPIF2
  *
@@ -68,7 +68,7 @@ uint8_t CyFxGpifWavedataPosition[]  = {
    GPIF II configuration register values.
  */
 uint32_t CyFxGpifRegValue[]  = {
-    0x80008210,  /*  CY_U3P_PIB_GPIF_CONFIG */
+    0x80008330,  /*  CY_U3P_PIB_GPIF_CONFIG */
     0x00000003,  /*  CY_U3P_PIB_GPIF_BUS_CONFIG */
     0x00000000,  /*  CY_U3P_PIB_GPIF_BUS_CONFIG2 */
     0x00000052,  /*  CY_U3P_PIB_GPIF_AD_CONFIG */

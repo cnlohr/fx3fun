@@ -5,10 +5,10 @@
       <I2SEnabled>False</I2SEnabled>
       <I2CEnabled>True</I2CEnabled>
       <SPIEnabled>False</SPIEnabled>
-      <I2SEnabled>True</I2SEnabled>
+      <I2SEnabled>False</I2SEnabled>
       <ADMuxedEnabled>False</ADMuxedEnabled>
       <InterfaceType>Master</InterfaceType>
-      <CommunicationType>Asynchronous</CommunicationType>
+      <CommunicationType>Synchronous</CommunicationType>
       <ClockSource>Internal</ClockSource>
       <ClockEdge>Positive</ClockEdge>
       <Endianness>LittleEndian</Endianness>

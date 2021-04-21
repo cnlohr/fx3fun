@@ -45,14 +45,14 @@
 #include "cyu3i2c.h"
 #include <cyu3gpif.h> //XXX CNL#include <cyu3pib.h>#include <pib_regs.h>
 #include <cyu3gpio.h>
+#include <cyu3pib.h>
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
 //#include "fast_gpif2.h"
 //#include "cyfxgpif2config.h"
 
+int is_running;
 CyU3PThread isoSrcAppThread; /* ISO loop application thread structure */
-
-void CyFxIsoSrcApplnInit(void);
 
 #ifdef DMAMULTI
 CyU3PDmaMultiChannel glChHandleIsoSrc; /* DMA MANUAL_OUT channel handle */
@@ -169,6 +169,7 @@ CyU3PDmaCBInput_t *input) /* Callback status.           */
  * when a SET_CONF event is received from the USB host. The endpoints
  * are configured and the DMA pipe is setup in this function. */
 void CyFxIsoSrcApplnStart(void) {
+	if( glIsApplnActive ) return;
 	uint16_t size = 0;
 	CyU3PEpConfig_t epCfg;
 	//CyU3PDmaBuffer_t buf_p;
@@ -302,6 +303,17 @@ void CyFxIsoSrcApplnStart(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	/* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
+	apiRetStatus = CyU3PGpifLoad(&CyFxGpifConfig);
+	if (apiRetStatus != CY_U3P_SUCCESS) {
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
+				"CyU3PGpifLoad failed, Error Code=%d\r\n", apiRetStatus);
+		CyFxAppErrorHandler(apiRetStatus);
+	}
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CyU3PGpifLoad OK\r\n" );
+	CyU3PReturnStatus_t stat = CyU3PGpifSMStart(RUN, ALPHA_RUN);
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CyU3PGpifSMStart = %d\r\n", stat );
+
 	/* Update the flag so that the application thread is notified of this. */
 	glIsApplnActive = CyTrue;
 }
@@ -313,10 +325,12 @@ void CyFxIsoSrcApplnStop(void) {
 	CyU3PEpConfig_t epCfg;
 	CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
 
+	if( !glIsApplnActive ) return;
+
 	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "De-initializing...\r\n");
 
 	//Stop the GPIF bus.
-	CyU3PGpifDisable(0);
+	CyU3PGpifDisable( CyTrue );
 
 #ifdef DMAMULTI
 	CyU3PDmaMultiChannelReset(&glChHandleIsoSrc);
@@ -407,7 +421,6 @@ uint32_t setupdat1 /* SETUP Data 1 */
 			CyU3PUsbSendEP0Data(16, (uint8_t*) sendback);  //Sends back "hello"
 			if (KeepDataAlive == 0) {
 				CyFxIsoSrcApplnStart();
-				CyU3PGpifSMStart(START, ALPHA_START);
 			}
 			//CAN CONFIRM: VALUE IN THIS DOES NOT DETERMINE WHETHER OR NOT THE OUTPUT IS GOOD.
 			KeepDataAlive = 1200 * 2 * 50;
@@ -487,12 +500,18 @@ CyBool_t CyFxIsoSrcApplnLPMRqtCB(CyU3PUsbLinkPowerMode link_mode) {
  * We don't expect errors to happen, and only print a message in case one is reported.
  */
 static void PibEventCallback(CyU3PPibIntrType cbType, uint16_t cbArg) {
+//	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "%d %d\n", cbType, cbArg );
+	if( cbType == CYU3P_PIB_INTR_DLL_UPDATE )
+	{
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CYU3P_PIB_INTR_DLL_UPDATE\n", cbType, cbArg );
+		// This happens.  It's the last thing that happens in synchronous mode.
+	}
+	else
 	if (cbType == CYU3P_PIB_INTR_ERROR) {
 		switch (CYU3P_GET_PIB_ERROR_TYPE(cbArg)) {
 		case CYU3P_PIB_ERR_THR2_WR_OVERRUN:
 		case CYU3P_PIB_ERR_THR1_WR_OVERRUN:
 		case CYU3P_PIB_ERR_THR0_WR_OVERRUN:
-			//CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "%d\r\n", KeepDataAlive);
 			DataOverrunErrors++;
 			LastOverrunMark = KeepDataAlive;
 			if (KeepDataAlive) {
@@ -502,6 +521,11 @@ static void PibEventCallback(CyU3PPibIntrType cbType, uint16_t cbArg) {
 					//Stop session.
 				}
 			}
+			break;
+		case CYU3P_PIB_ERR_THR1_SCK_INACTIVE:
+			CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "Thread Inactive\n" );
+			CyFxIsoSrcApplnStop();
+			KeepDataAlive = 0;
 			break;
 		case CYU3P_PIB_ERR_THR3_WR_OVERRUN:
 			CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
@@ -531,25 +555,32 @@ static void PibEventCallback(CyU3PPibIntrType cbType, uint16_t cbArg) {
 	}
 }
 
-/* This function initializes the USB Module, sets the enumeration descriptors.
- * This function does not start the ISO streaming and this is done only when
- * SET_CONF event is received. */
-void CyFxIsoSrcApplnInit(void) {
-	CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
+/* Entry function for the IsoSrcAppThread. */
+void IsoSrcAppThread_Entry(uint32_t input) {
+	uint32_t evMask = CYFX_ISOAPP_CTRL_TASK;
+	uint32_t evStat;
+	CyU3PReturnStatus_t stat;
 
-	//XXX CNL Setup GPIF
+	/* Initialize the debug module */
+	CyFxIsoSrcApplnDebugInit();
+
+	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "IsoSrcAppThread_Entry(...)\r\n");
+
+	/* Initialize the ISO loop application */
+	/* This function initializes the USB Module, sets the enumeration descriptors.
+	 * This function does not start the ISO streaming and this is done only when
+	 * SET_CONF event is received. */
+	CyU3PReturnStatus_t apiRetStatus = CY_U3P_SUCCESS;
 
 	CyU3PPibClock_t pibClock;
 	CyU3PGpioClock_t gpioClock;
-	//CyU3PGpioSimpleConfig_t gpioConfig;
-	//CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
 	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "In IsoSrcAppThread_Entry(...)\r\n");
 
 	pibClock.clkDiv = 4; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
 	pibClock.clkSrc = CY_U3P_SYS_CLK;
 	pibClock.isHalfDiv = CyFalse; //Adds 0.5 to divisor
-	pibClock.isDllEnable = CyTrue;	//For async or master-mode
+	pibClock.isDllEnable = CyFalse;	//For async or master-mode
 	apiRetStatus = CyU3PPibInit(CyTrue, &pibClock);
 	if (apiRetStatus != CY_U3P_SUCCESS) {
 		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
@@ -557,7 +588,6 @@ void CyFxIsoSrcApplnInit(void) {
 				apiRetStatus);
 		CyFxAppErrorHandler(apiRetStatus);
 	}
-
 
 	/* Initialize the GPIO module. This is used to update the indicator LED. */
 	gpioClock.fastClkDiv = 2;
@@ -569,8 +599,7 @@ void CyFxIsoSrcApplnInit(void) {
 	apiRetStatus = CyU3PGpioInit(&gpioClock, 0);
 	if (apiRetStatus != 0) {
 		/* Error Handling */
-		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
-				"CyU3PGpioInit failed, error code = %d\r\n", apiRetStatus);
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CyU3PGpioInit failed, error code = %d\r\n", apiRetStatus);
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
@@ -717,14 +746,11 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Loading\r\n");
 
-	/* Load the GPIF configuration for our project.. This loads the state machine for interfacing with SRAM */
-	apiRetStatus = CyU3PGpifLoad(&CyFxGpifConfig);
-	if (apiRetStatus != CY_U3P_SUCCESS) {
-		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY,
-				"CyU3PGpifLoad failed, Error Code=%d\r\n", apiRetStatus);
-		CyFxAppErrorHandler(apiRetStatus);
-	}
+	//CyU3PGpifSMStart(START, ALPHA_START);
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Registering Callback\r\n");
+
 
 	/* callback to see if there is any overflow of data on the GPIF II side*/
 	//XXX Why is CYU3P_PIB_ERR_THR0_WR_OVERRUN getting called incessently?
@@ -734,28 +760,15 @@ void CyFxIsoSrcApplnInit(void) {
 
 
 	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "CyFxIsoSrcApplnInit Complete\r\n");
-}
-
-/* Entry function for the IsoSrcAppThread. */
-void IsoSrcAppThread_Entry(uint32_t input) {
-	uint32_t evMask = CYFX_ISOAPP_CTRL_TASK;
-	uint32_t evStat;
-	CyU3PReturnStatus_t stat;
-
-	/* Initialize the debug module */
-	CyFxIsoSrcApplnDebugInit();
-
-	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "IsoSrcAppThread_Entry(...)\r\n");
-
-	/* Initialize the ISO loop application */
-	CyFxIsoSrcApplnInit();
 
 	CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "CyFxIsoSrcApplnInit(...) done\r\n");
 
 	/* Wait for any vendor specific requests to arrive, and then handle them. */
 	for (;;) {
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "STATIN\n" );
 		stat = CyU3PEventGet(&glAppEvent, evMask, CYU3P_EVENT_OR_CLEAR, &evStat,
 				CYU3P_WAIT_FOREVER);
+		CyU3PDebugPrint(CY_FX_DEBUG_PRIORITY, "STAT: %d\n", stat );
 		if (stat == CY_U3P_SUCCESS) {
 			if (evStat & CYFX_ISOAPP_CTRL_TASK) {
 				uint8_t bRequest, bReqType;

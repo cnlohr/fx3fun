@@ -1,6 +1,6 @@
 /*
  * Project Name: fast_gpif2.cyfx
- * Time : 04/12/2021 22:02:29
+ * Time : 04/15/2021 20:09:04
  * Device Type: FX3
  * Project Type: GPIF2
  *
@@ -21,7 +21,7 @@
 /* Summary
    Number of states in the state machine
  */
-#define CY_NUMBER_OF_STATES 4
+#define CY_NUMBER_OF_STATES 6
 
 /* Summary
    Mapping of user defined state names to state indices
@@ -29,13 +29,16 @@
 #define START 0
 #define STATE0 2
 #define STATE3 3
-#define STATE4 1
+#define STATE4 4
+#define RUN 5
+#define DO_NOTHING 1
 
 
 /* Summary
    Initial value of early outputs from the state machine.
  */
-#define ALPHA_START 0x0
+#define ALPHA_START 0x4
+#define ALPHA_RUN 0x0
 
 
 /* Summary
@@ -52,23 +55,25 @@ uint16_t CyFxGpifTransition[]  = {
    waveform table. 
  */
 CyU3PGpifWaveData CyFxGpifWavedata[]  = {
-    {{0x2E739C01,0x00001500,0x800000A0},{0x00000000,0x00000000,0x00000000}},
+    {{0x00000001,0x00000000,0x80000800},{0x00000000,0x00000000,0x00000000}},
+    {{0x00000000,0x00000000,0x00000000},{0x00000000,0x00000000,0x00000000}},
+    {{0x1E739303,0x24001500,0x80000010},{0x00000000,0x00000000,0x00000000}},
     {{0x1E739402,0x20002900,0x80000040},{0x00000000,0x00000000,0x00000000}},
-    {{0x1E739303,0x24001500,0x80000010},{0x00000000,0x00000000,0x00000000}}
+    {{0x2E739C04,0x00001500,0x800000A0},{0x00000000,0x00000000,0x00000000}}
 };
 
 /* Summary
    Table that maps state indices to the descriptor table indices.
  */
 uint8_t CyFxGpifWavedataPosition[]  = {
-    0,1,2,1
+    0,1,2,3,3,4
 };
 
 /* Summary
    GPIF II configuration register values.
  */
 uint32_t CyFxGpifRegValue[]  = {
-    0x80008300,  /*  CY_U3P_PIB_GPIF_CONFIG */
+    0x80008308,  /*  CY_U3P_PIB_GPIF_CONFIG */
     0x00000003,  /*  CY_U3P_PIB_GPIF_BUS_CONFIG */
     0x00000000,  /*  CY_U3P_PIB_GPIF_BUS_CONFIG2 */
     0x00000046,  /*  CY_U3P_PIB_GPIF_AD_CONFIG */
@@ -138,7 +143,7 @@ uint32_t CyFxGpifRegValue[]  = {
     0x00000000,  /*  CY_U3P_PIB_GPIF_LAMBDA_STAT */
     0x00000000,  /*  CY_U3P_PIB_GPIF_ALPHA_STAT */
     0x00000000,  /*  CY_U3P_PIB_GPIF_BETA_STAT */
-    0x00000000,  /*  CY_U3P_PIB_GPIF_WAVEFORM_CTRL_STAT */
+    0x00040000,  /*  CY_U3P_PIB_GPIF_WAVEFORM_CTRL_STAT */
     0x00000000,  /*  CY_U3P_PIB_GPIF_WAVEFORM_SWITCH */
     0x00000000,  /*  CY_U3P_PIB_GPIF_WAVEFORM_SWITCH_TIMEOUT */
     0x00000000,  /*  CY_U3P_PIB_GPIF_CRC_CONFIG */
