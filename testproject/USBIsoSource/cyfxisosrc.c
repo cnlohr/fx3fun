@@ -442,153 +442,6 @@ CyBool_t CyFxIsoSrcApplnUSBSetupCB(	uint32_t setupdat0, /* SETUP Data 0 */
 			CyU3PReturnStatus_t st = CyU3PUsbGetEP0Data( 512, buffer, &readCount );
 			CyU3PDebugPrint( 4, "CyU3PUsbGetEP0Data(...) = %d -> readCount: %d [%d]\r\n", st, readCount, buffer[0] );
 			isHandled = CyTrue;
-		} else if( bRequest == 0xdd ) {
-			uint8_t reply[64];
-			int replylen = 0;
-			uint16_t wIndex = setupdat1 & 0xffff;
-			uint8_t opcode = wValue & 0xff;
-			uint8_t par1 = wValue >> 8;
-			uint8_t par2 = wIndex & 0xff;
-			uint8_t par3 = wIndex >> 8;
-			switch( opcode )
-			{
-			case 0x00:	//NOP
-				break;
-			case 0x01: //GPIO Config.
-			{
-					//25 = CTRL[8] --> See https://github.com/baidu/boteye_sensor/blob/302fc586ae361b0d0e49118a67dc88c3a0fa88a1/firmware/include/fx3_bsp.h
-				CyU3PGpioSimpleConfig_t cfg =
-				{
-					.driveHighEn = (par2>>0) & 0x01,
-					.driveLowEn = (par2>>1) & 0x01,
-					.inputEn = (par2>>2) & 0x01,
-					.outValue = (par2>>3) & 0x01,
-					.intrMode = CY_U3P_GPIO_NO_INTR,
-				};
-				CyU3PDeviceGpioOverride( par1, CyTrue );
-				CyU3PReturnStatus_t apiRetStatus = CyU3PGpioSetSimpleConfig( par1, &cfg);
-		        CyU3PDebugPrint (4, "CyU3PGpioSetSimpleConfig = %d {%d = %d %d %d %d }\n", apiRetStatus, par1, cfg.driveHighEn, cfg.driveLowEn, cfg.inputEn, cfg.outValue );
-		        reply[0] = apiRetStatus;
-		        replylen = 1;
-		        break;
-			}
-			case 0x02: //GPIO Read.
-			{
-				CyBool_t v;
-				reply[0] = CyU3PGpioSimpleGetValue( par1, &v );
-				reply[1] = v;
-				replylen = 2;
-				break;
-			}
-			case 0x03: //GPIO Write
-			{
-				reply[1] = CyU3PGpioSimpleSetValue( par1, par2 );
-				replylen = 1;
-				break;
-			}
-
-			case 0x04: //Send I2C Start
-			{
-				CyU3PDeviceGpioOverride( SCLP, CyTrue );
-				CyU3PDeviceGpioOverride( SDAP, CyTrue );
-
-				//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
-				RELEASE(SCLP);
-				HOLD_LO(SDAP);
-				HOLD_LO(SCLP);
-				break;
-			}
-			case 0x05: //Send I2C Stop
-			{
-				CyU3PDeviceGpioOverride( SCLP, CyTrue );
-				CyU3PDeviceGpioOverride( SDAP, CyTrue );
-
-				//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
-				HOLD_LO( SDAP );
-				RELEASE( SCLP );
-				RELEASE( SDAP );
-				break;
-			}
-			case 0x06: //Send I2C Byte
-			{
-				CyU3PDeviceGpioOverride( SCLP, CyTrue );
-				CyU3PDeviceGpioOverride( SDAP, CyTrue );
-
-				//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
-				replylen = 2;
-				HOLD_LO( SCLP );
-				int i;
-				for( i = 0; i < 8; i++ )
-				{
-					if( par3 & 0x80 )
-					{
-						RELEASE( SDAP );
-					}
-					else
-					{
-						HOLD_LO( SDAP );
-					}
-					par3<<=1;
-					RELEASE( SCLP );
-					I2CDELAY();
-					HOLD_LO( SCLP );
-				}
-				RELEASE( SDAP );
-				RELEASE( SCLP );
-				I2CDELAY();
-				I2CDELAY();
-				I2CDELAY();
-				CyBool_t v;
-				reply[0] = CyU3PGpioSimpleGetValue( SDAP, &v );
-				reply[1] = v;
-				HOLD_LO( SCLP );
-				break;
-			}
-			case 0x07: //Get I2C Byte
-			case 0x08: //Get I2C Byte w/NAK
-			{
-				CyU3PDeviceGpioOverride( SCLP, CyTrue );
-				CyU3PDeviceGpioOverride( SDAP, CyTrue );
-
-				replylen = 2;
-				reply[0] = 0;
-				RELEASE( SDAP );
-				uint8_t rv = 0;
-				int i;
-				for( i = 0; i < 8; i++ )
-				{
-					RELEASE( SCLP );
-					I2CDELAY();
-					I2CDELAY();
-					I2CDELAY();
-					rv <<= 1;
-					CyBool_t v;
-					reply[0] |= CyU3PGpioSimpleGetValue( SDAP, &v );
-					rv |= !!v;
-					HOLD_LO( SCLP );
-				}
-				reply[1] = rv;
-
-				I2CDELAY();
-
-				if( opcode == 0x08 )
-				{
-					RELEASE( SDAP );
-				}
-				else
-				{
-					HOLD_LO( SDAP );
-				}
-				I2CDELAY();
-				RELEASE( SCLP );
-				I2CDELAY();
-				HOLD_LO( SCLP );
-				break;
-			}
-			}
-	        CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d\n", opcode, par1, par2, par3, replylen );
-
-			CyU3PUsbSendEP0Data(replylen, (uint8_t*) reply);  //Sends back reply
 		} else {
 			/* Send an event to the thread, asking for this control request to be handled. */
 			CyU3PEventSet(&glAppEvent, CYFX_ISOAPP_CTRL_TASK, CYU3P_EVENT_OR);
@@ -906,7 +759,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 		if (stat == CY_U3P_SUCCESS) {
 			if (evStat & CYFX_ISOAPP_CTRL_TASK) {
 				uint8_t bRequest, bReqType;
-				uint16_t wLength;
+				uint16_t wLength, wValue;
 				CyU3PI2cPreamble_t preamble;
 
 				/* Decode the fields from the setup request. */
@@ -915,9 +768,187 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						>> CY_U3P_USB_REQUEST_POS);
 				wLength = ((glCtrlDat1 & CY_U3P_USB_LENGTH_MASK)
 						>> CY_U3P_USB_LENGTH_POS);
+				wValue = ((glCtrlDat0 & CY_U3P_USB_VALUE_MASK) >> CY_U3P_USB_VALUE_POS);
+
+				uint16_t wIndex = glCtrlDat1 & 0xffff;
+				uint8_t opcode = wValue & 0xff;
+				uint8_t par1 = wValue >> 8;
+				uint8_t par2 = wIndex & 0xff;
+				uint8_t par3 = wIndex >> 8;
 
 				if ((bReqType & CY_U3P_USB_TYPE_MASK) == CY_U3P_USB_VENDOR_RQT) {
 					switch (bRequest) {
+					case 0xDD:  //Special commands.
+					{
+						uint8_t reply[64];
+						int replylen = 0;
+						switch( opcode )
+						{
+						case 0x00:	//NOP
+							break;
+						case 0x01: //GPIO Config.
+						{
+								//25 = CTRL[8] --> See https://github.com/baidu/boteye_sensor/blob/302fc586ae361b0d0e49118a67dc88c3a0fa88a1/firmware/include/fx3_bsp.h
+							CyU3PGpioSimpleConfig_t cfg =
+							{
+								.driveHighEn = (par2>>0) & 0x01,
+								.driveLowEn = (par2>>1) & 0x01,
+								.inputEn = (par2>>2) & 0x01,
+								.outValue = (par2>>3) & 0x01,
+								.intrMode = CY_U3P_GPIO_NO_INTR,
+							};
+							CyU3PDeviceGpioOverride( par1, CyTrue );
+							CyU3PReturnStatus_t apiRetStatus = CyU3PGpioSetSimpleConfig( par1, &cfg);
+							CyU3PDebugPrint (4, "CyU3PGpioSetSimpleConfig = %d {%d = %d %d %d %d }\n", apiRetStatus, par1, cfg.driveHighEn, cfg.driveLowEn, cfg.inputEn, cfg.outValue );
+							reply[0] = apiRetStatus;
+							replylen = 1;
+							break;
+						}
+						case 0x02: //GPIO Read.
+						{
+							CyBool_t v;
+							reply[0] = CyU3PGpioSimpleGetValue( par1, &v );
+							reply[1] = v;
+							replylen = 2;
+							break;
+						}
+						case 0x03: //GPIO Write
+						{
+							reply[1] = CyU3PGpioSimpleSetValue( par1, par2 );
+							replylen = 1;
+							break;
+						}
+
+						case 0x04: //Send I2C Start
+						{
+							CyU3PDeviceGpioOverride( SCLP, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+
+							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
+							RELEASE(SCLP);
+							HOLD_LO(SDAP);
+							HOLD_LO(SCLP);
+							break;
+						}
+						case 0x05: //Send I2C Stop
+						{
+							CyU3PDeviceGpioOverride( SCLP, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+
+							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
+							HOLD_LO( SDAP );
+							RELEASE( SCLP );
+							RELEASE( SDAP );
+							break;
+						}
+						case 0x06: //Send I2C Byte
+						{
+							CyU3PDeviceGpioOverride( SCLP, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+
+							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
+							replylen = 2;
+							HOLD_LO( SCLP );
+							int i;
+							for( i = 0; i < 8; i++ )
+							{
+								if( par3 & 0x80 )
+								{
+									RELEASE( SDAP );
+								}
+								else
+								{
+									HOLD_LO( SDAP );
+								}
+								par3<<=1;
+								RELEASE( SCLP );
+								I2CDELAY();
+								HOLD_LO( SCLP );
+							}
+							RELEASE( SDAP );
+							RELEASE( SCLP );
+							I2CDELAY();
+							I2CDELAY();
+							I2CDELAY();
+							CyBool_t v;
+							reply[0] = CyU3PGpioSimpleGetValue( SDAP, &v );
+							reply[1] = v;
+							HOLD_LO( SCLP );
+							break;
+						}
+						case 0x07: //Get I2C Byte
+						case 0x08: //Get I2C Byte w/NAK
+						{
+							CyU3PDeviceGpioOverride( SCLP, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+
+							replylen = 2;
+							reply[0] = 0;
+							RELEASE( SDAP );
+							uint8_t rv = 0;
+							int i;
+							for( i = 0; i < 8; i++ )
+							{
+								RELEASE( SCLP );
+								I2CDELAY();
+								I2CDELAY();
+								I2CDELAY();
+								rv <<= 1;
+								CyBool_t v;
+								reply[0] |= CyU3PGpioSimpleGetValue( SDAP, &v );
+								rv |= !!v;
+								HOLD_LO( SCLP );
+							}
+							reply[1] = rv;
+
+							I2CDELAY();
+
+							if( opcode == 0x08 )
+							{
+								RELEASE( SDAP );
+							}
+							else
+							{
+								HOLD_LO( SDAP );
+							}
+							I2CDELAY();
+							RELEASE( SCLP );
+							I2CDELAY();
+							HOLD_LO( SCLP );
+							break;
+						}
+						case 0x10:
+						{
+							CyU3PGpifDisable(CyFalse);
+							CyU3PPibDeInit();
+							//Reconfigure Clock
+							CyU3PPibClock_t pibClock;
+			#if 1
+							pibClock.clkDiv = par1; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
+							pibClock.clkSrc = CY_U3P_SYS_CLK;
+							pibClock.isHalfDiv = par2; //Adds 0.5 to divisor
+							pibClock.isDllEnable = par3;	//For async or master-mode
+							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
+							CyU3PDebugPrint (4, "CyU3PPibInit( %d %d %d)\n", par1, par2, par3 );
+			#else
+							pibClock.clkDiv = 8; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
+							pibClock.clkSrc = CY_U3P_SYS_CLK;
+							pibClock.isHalfDiv = CyFalse; //Adds 0.5 to divisor
+							pibClock.isDllEnable = CyTrue;	//For async or master-mode
+							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
+			#endif
+
+							reply[1] = CyU3PGpifLoad(&CyFxGpifConfig);
+
+							replylen = 2;
+							break;
+						}
+						}
+						CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d G1: %d WV: %d\n", opcode, par1, par2, par3, replylen, glCtrlDat0, wValue );
+						CyU3PUsbSendEP0Data(replylen, (uint8_t*) reply);  //Sends back reply
+						//
+						break;
+					}
 					case CYFX_ISOAPP_DOUT_RQT:
 						/* If the user data can fit in our buffer, read it; otherwise, stall the control pipe. */
 						if (wLength <= CYFX_ISOAPP_MAX_EP0LEN) {
