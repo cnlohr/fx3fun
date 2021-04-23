@@ -33,22 +33,6 @@
       <Delay>Alpha</Delay>
       <AssetionType>Toggle</AssetionType>
     </Signal>
-    <Signal ElementId="OUTPUT2" SignalType="Output" SpecialFunction="None">
-      <DisplayName>OUTPUT2</DisplayName>
-      <GPIOPinNumber>GPIO_19</GPIOPinNumber>
-      <IntialValue>Low</IntialValue>
-      <Polarity>ActiveHigh</Polarity>
-      <Delay>Alpha</Delay>
-      <AssetionType>Toggle</AssetionType>
-    </Signal>
-    <Signal ElementId="OUTPUT3" SignalType="Output" SpecialFunction="None">
-      <DisplayName>OUTPUT3</DisplayName>
-      <GPIOPinNumber>GPIO_20</GPIOPinNumber>
-      <IntialValue>Low</IntialValue>
-      <Polarity>ActiveHigh</Polarity>
-      <Delay>Alpha</Delay>
-      <AssetionType>Toggle</AssetionType>
-    </Signal>
   </Signals>
   <StateMachine>
     <AddressCounter />
@@ -78,17 +62,11 @@
       <Action ElementId="DR_GPIO0" ActionType="DR_GPIO">
         <ControlPinName>OUTPUT0</ControlPinName>
       </Action>
-      <Action ElementId="DR_GPIO1" ActionType="DR_GPIO">
-        <ControlPinName>OUTPUT2</ControlPinName>
-      </Action>
     </State>
     <State ElementId="STATE3" StateType="NormalState">
       <DisplayName>STATE3</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
       <RepeatCount>0</RepeatCount>
-      <Action ElementId="DR_GPIO0" ActionType="DR_GPIO">
-        <ControlPinName>OUTPUT1</ControlPinName>
-      </Action>
       <Action ElementId="COUNT_ADDR0" ActionType="COUNT_ADDR" />
       <Action ElementId="IN_DATA0" ActionType="IN_DATA">
         <DataSourceSink>Socket</DataSourceSink>
@@ -96,8 +74,8 @@
         <SampleData>True</SampleData>
         <WriteDataIntoDataSink>True</WriteDataIntoDataSink>
       </Action>
-      <Action ElementId="DR_GPIO1" ActionType="DR_GPIO">
-        <ControlPinName>OUTPUT3</ControlPinName>
+      <Action ElementId="DR_GPIO0" ActionType="DR_GPIO">
+        <ControlPinName>OUTPUT1</ControlPinName>
       </Action>
     </State>
     <State ElementId="STATE4" StateType="NormalState">

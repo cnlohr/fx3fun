@@ -43,7 +43,7 @@
 #include "cyu3usb.h"
 #include "cyu3uart.h"
 #include "cyu3i2c.h"
-#include <cyu3gpif.h> //XXX CNL#include <cyu3pib.h>#include <pib_regs.h>
+#include <cyu3gpif.h>#include <cyu3pib.h>#include <pib_regs.h>
 #include <cyu3gpio.h>
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
@@ -923,22 +923,22 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							CyU3PPibDeInit();
 							//Reconfigure Clock
 							CyU3PPibClock_t pibClock;
-			#if 1
 							pibClock.clkDiv = par1; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
 							pibClock.clkSrc = CY_U3P_SYS_CLK;
-							pibClock.isHalfDiv = par2; //Adds 0.5 to divisor
-							pibClock.isDllEnable = par3;	//For async or master-mode
+							pibClock.isHalfDiv = !!(par2 & 1); 		//Adds 0.5 to divisor
+							pibClock.isDllEnable = !!(par2 & 2);	//For async or master-mode
 							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
 							CyU3PDebugPrint (4, "CyU3PPibInit( %d %d %d)\n", par1, par2, par3 );
-			#else
-							pibClock.clkDiv = 8; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
-							pibClock.clkSrc = CY_U3P_SYS_CLK;
-							pibClock.isHalfDiv = CyFalse; //Adds 0.5 to divisor
-							pibClock.isDllEnable = CyTrue;	//For async or master-mode
-							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
-			#endif
 
-							reply[1] = CyU3PGpifLoad(&CyFxGpifConfig);
+							if( par3 == 1 )
+							{
+								extern int ComplexGPIFLoad();
+								reply[1] = ComplexGPIFLoad();
+							}
+							else
+							{
+								reply[1] = CyU3PGpifLoad(&CyFxGpifConfig);
+							}
 
 							replylen = 2;
 							break;
