@@ -173,14 +173,6 @@
       </Action>
       <Action ElementId="COUNT_ADDR0" ActionType="COUNT_ADDR" />
     </State>
-    <Transition ElementId="TRANSITION7" SourceState="STATE0" DestinationState="STATE2" Equation="DATA_CNT_HIT" />
-    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE4" Equation="LOGIC_ONE" />
-    <Transition ElementId="TRANSITION1" SourceState="STATE4" DestinationState="STATE0" Equation="LOGIC_ONE" />
-    <Transition ElementId="TRANSITION9" SourceState="STATE3" DestinationState="STATE1" Equation="DATA_CNT_HIT" />
-    <Transition ElementId="TRANSITION17" SourceState="STATE5" DestinationState="STATE3" Equation="LOGIC_ONE" />
-    <Transition ElementId="TRANSITION14" SourceState="STATE3" DestinationState="STATE0" Equation="ADDR_CNT_HIT" />
-    <Transition ElementId="TRANSITION2" SourceState="STATE1" DestinationState="STATE7" Equation="LOGIC_ONE" />
-    <Transition ElementId="TRANSITION15" SourceState="STATE0" DestinationState="STATE3" Equation="ADDR_CNT_HIT" />
     <State ElementId="STATE7" StateType="NormalState">
       <DisplayName>STATE7</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
@@ -192,8 +184,6 @@
         <WriteDataIntoDataSink>True</WriteDataIntoDataSink>
       </Action>
     </State>
-    <Transition ElementId="TRANSITION19" SourceState="STATE6" DestinationState="STATE0" Equation="LOGIC_ONE" />
-    <Transition ElementId="TRANSITION3" SourceState="STATE7" DestinationState="STATE5" Equation="LOGIC_ONE" />
     <State ElementId="STATE8" StateType="NormalState">
       <DisplayName>STATE8</DisplayName>
       <RepeatUntillNextTransition>True</RepeatUntillNextTransition>
@@ -205,6 +195,16 @@
         <WriteDataIntoDataSink>True</WriteDataIntoDataSink>
       </Action>
     </State>
+    <Transition ElementId="TRANSITION7" SourceState="STATE0" DestinationState="STATE2" Equation="DATA_CNT_HIT" />
+    <Transition ElementId="TRANSITION0" SourceState="STARTSTATE0" DestinationState="STATE4" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION1" SourceState="STATE4" DestinationState="STATE0" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION9" SourceState="STATE3" DestinationState="STATE1" Equation="DATA_CNT_HIT" />
+    <Transition ElementId="TRANSITION17" SourceState="STATE5" DestinationState="STATE3" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION14" SourceState="STATE3" DestinationState="STATE0" Equation="ADDR_CNT_HIT" />
+    <Transition ElementId="TRANSITION2" SourceState="STATE1" DestinationState="STATE7" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION15" SourceState="STATE0" DestinationState="STATE3" Equation="ADDR_CNT_HIT" />
+    <Transition ElementId="TRANSITION19" SourceState="STATE6" DestinationState="STATE0" Equation="LOGIC_ONE" />
+    <Transition ElementId="TRANSITION3" SourceState="STATE7" DestinationState="STATE5" Equation="LOGIC_ONE" />
     <Transition ElementId="TRANSITION4" SourceState="STATE2" DestinationState="STATE8" Equation="LOGIC_ONE" />
     <Transition ElementId="TRANSITION5" SourceState="STATE8" DestinationState="STATE6" Equation="LOGIC_ONE" />
   </StateMachine>

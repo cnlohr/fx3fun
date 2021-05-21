@@ -45,6 +45,7 @@
 #include "cyu3i2c.h"
 #include <cyu3gpif.h>#include <cyu3pib.h>#include <pib_regs.h>
 #include <cyu3gpio.h>
+#include "cyu3pib.h"
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
 //#include "fast_gpif2.h"
@@ -59,6 +60,9 @@ CyU3PDmaMultiChannel glChHandleIsoSrc; /* DMA MANUAL_OUT channel handle */
 #else
 CyU3PDmaChannel glChHandleIsoSrc; /* DMA MANUAL_OUT channel handle */
 #endif
+
+int gpif_is_complex;
+CyU3PPibClock_t pibClock;
 
 uint32_t DataOverrunErrors = 0;
 uint32_t dmaevent;
@@ -560,12 +564,11 @@ void CyFxIsoSrcApplnInit(void) {
 
 	//XXX CNL Setup GPIF
 
-	CyU3PPibClock_t pibClock;
 	CyU3PGpioClock_t gpioClock;
 	//CyU3PGpioSimpleConfig_t gpioConfig;
 	//CyU3PReturnStatus_t     apiRetStatus = CY_U3P_SUCCESS;
 
-	pibClock.clkDiv = 4; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
+	pibClock.clkDiv = 8; //~400 MHz / 8.  or 400 / 8  --- or 384 / 4 or 384 / 8
 	pibClock.clkSrc = CY_U3P_SYS_CLK;
 	pibClock.isHalfDiv = CyFalse; //Adds 0.5 to divisor
 	pibClock.isDllEnable = CyTrue;	//For async or master-mode
@@ -922,7 +925,6 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							CyU3PGpifDisable(CyFalse);
 							CyU3PPibDeInit();
 							//Reconfigure Clock
-							CyU3PPibClock_t pibClock;
 							pibClock.clkDiv = par1; //~400 MHz / 4.  or 400 / 8  --- or 384 / 4 or 384 / 8
 							pibClock.clkSrc = CY_U3P_SYS_CLK;
 							pibClock.isHalfDiv = !!(par2 & 1); 		//Adds 0.5 to divisor
@@ -932,20 +934,160 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 
 							if( par3 == 1 )
 							{
+								gpif_is_complex = 1;
 								extern int ComplexGPIFLoad();
 								reply[1] = ComplexGPIFLoad();
 							}
 							else
 							{
+								gpif_is_complex = 0;
 								reply[1] = CyU3PGpifLoad(&CyFxGpifConfig);
 							}
 
 							replylen = 2;
 							break;
 						}
+						case 0x11:
+						{
+							//https://community.cypress.com/t5/Knowledge-Base-Articles/Configuring-EZ-USB-FX3-GPIF-II-DLL-KBA210733/ta-p/247793
+							//https://community.cypress.com/t5/USB-Superspeed-Peripherals/EZ-USB-FX3-GPIF-II-synchronous-master-supported-clock-rates-and/m-p/263978
+			//				CyU3PGpifDisable(CyFalse);
+			//				CyU3PPibDeInit();
+			//				reply[0] = CyU3PPibInit(CyTrue, &pibClock);
+						//	reply[1] = CyU3PPibDllConfigure( CYU3P_PIB_DLL_MASTER,
+						//			par1*2, par2 & 0xf, (par2 >> 4) & 0xf, par3, CyFalse );
+							#define CY_FX3_PIB_DLL_CORE_PHASE_POS   (4)                             /* Position of core clock phase field. */
+							#define CY_FX3_PIB_DLL_SYNC_PHASE_POS   (8)                             /* Position of sync clock phase field. */
+							#define CY_FX3_PIB_DLL_OP_PHASE_POS     (12)                            /* Position of output clock phase field. */
+							#define CY_FX3_PIB_DLL_ENABLE  1
+							#define CY_FX3_PIB_DLL_HIGH_FREQ  2
+							#define CY_FX3_PIB_DLL_RESET_N (1<<30)
+
+							volatile uint32_t * CY_FX3_PIB_DLL_CTRL_REG =  (volatile uint32_t *)0xE0010028;
+
+							*CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_ENABLE);
+
+							I2CDELAY();
+							I2CDELAY();
+							I2CDELAY();
+
+							int corePhase = par2 & 0xf;
+							int syncPhase = (par2 >> 4) & 0xf;
+							int opPhase = par3 & 0xf;
+							int phaseDelay = par1*2;
+							int enable = ( par3 >> 4 ) & 1;
+							int high = ( par3 >> 4 ) & 2;
+							int slave_mode = (enable)?0:7;
+							*CY_FX3_PIB_DLL_CTRL_REG = (
+								((corePhase & 0x0F) << CY_FX3_PIB_DLL_CORE_PHASE_POS) |
+								((syncPhase & 0x0F) << CY_FX3_PIB_DLL_SYNC_PHASE_POS) |
+								((opPhase & 0x0F)   << CY_FX3_PIB_DLL_OP_PHASE_POS) |
+								high |
+								enable |
+								(phaseDelay<<17) |
+								(slave_mode<<27) |
+								0x80000000
+							);
+
+							*CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_RESET_N);
+
+							I2CDELAY();
+							I2CDELAY();
+							I2CDELAY();
+
+							/* Clear Reset */
+
+							*CY_FX3_PIB_DLL_CTRL_REG |= CY_FX3_PIB_DLL_RESET_N;
+
+							I2CDELAY();
+							I2CDELAY();
+							I2CDELAY();
+
+#if 0
+							if( gpif_is_complex == 1 )
+							{
+								extern int ComplexGPIFLoad();
+								reply[2] = ComplexGPIFLoad();
+							}
+							else
+							{
+								gpif_is_complex = 0;
+								reply[2] = CyU3PGpifLoad(&CyFxGpifConfig);
+							}
+#endif
+							reply[3] = 255;
+							reply[4] = par1;
+							reply[5] = par2;
+							reply[6] = par3;
+							reply[7] = 255;
+							replylen = 8;
+
+							//pibClock.isDllEnable = CyFalse; //Will be enabled by DllConfigure.
+							//CyU3PPibDllConfigure( CYU3P_PIB_DLL_MASTER, par1*2, par2 & 0xf, (par2 >> 4) & 0xf, par3 & 0xf, 0 );
+							//CyU3PPibInit(CyTrue, &pibClock);
+						//	extern int ComplexGPIFLoad();
+						//	reply[1] = ComplexGPIFLoad();
+
+#if 0
+							#define CY_FX3_PIB_DLL_CORE_PHASE_POS   (4)                             /* Position of core clock phase field. */
+							#define CY_FX3_PIB_DLL_SYNC_PHASE_POS   (8)                             /* Position of sync clock phase field. */
+							#define CY_FX3_PIB_DLL_OP_PHASE_POS     (12)                            /* Position of output clock phase field. */
+							#define CY_FX3_PIB_DLL_ENABLE  1
+							#define CY_FX3_PIB_DLL_HIGH_FREQ  2
+							#define CY_FX3_PIB_DLL_RESET_N (1<<30)
+
+							volatile uint32_t * CY_FX3_PIB_DLL_CTRL_REG =  (volatile uint32_t *)0xE0010028;
+							CyU3PPibDeInit();
+
+						    *CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_ENABLE);
+
+						    I2CDELAY();
+						    I2CDELAY();
+						    I2CDELAY();
+
+							int corePhase = par2 & 0xf;
+							int syncPhase = (par2 >> 4) & 0xf;
+							int opPhase = par3 & 0xf;
+							int phaseDelay = par1*2;
+							int enable = ( par3 >> 4 ) & 1;
+							int high = ( par3 >> 4 ) & 2;
+							int slave_mode = (enable)?0:7;
+							*CY_FX3_PIB_DLL_CTRL_REG = (
+								((corePhase & 0x0F) << CY_FX3_PIB_DLL_CORE_PHASE_POS) |
+								((syncPhase & 0x0F) << CY_FX3_PIB_DLL_SYNC_PHASE_POS) |
+								((opPhase & 0x0F)   << CY_FX3_PIB_DLL_OP_PHASE_POS) |
+								high |
+								enable |
+								(phaseDelay<<17) |
+								(slave_mode<<27) |
+								0x80000000
+							);
+
+						    *CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_RESET_N);
+
+						    I2CDELAY();
+						    I2CDELAY();
+						    I2CDELAY();
+
+						    /* Clear Reset */
+
+						    *CY_FX3_PIB_DLL_CTRL_REG |= CY_FX3_PIB_DLL_RESET_N;
+
+						    I2CDELAY();
+						    I2CDELAY();
+						    I2CDELAY();
+
+						    /* Wait for DLL to lock */
+						    //while (!(CY_FX3_PIB_DLL_CTRL_REG & CY_FX3_PIB_DLL_LOCK_STAT));
+
+							//Reconfigure Clock
+							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
+#endif
+							break;
 						}
-						CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d G1: %d WV: %d\n", opcode, par1, par2, par3, replylen, glCtrlDat0, wValue );
+						}
 						CyU3PUsbSendEP0Data(replylen, (uint8_t*) reply);  //Sends back reply
+						CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d G1: %d WV: %d\n", opcode, par1, par2, par3, replylen, glCtrlDat0, wValue );
 						//
 						break;
 					}
