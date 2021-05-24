@@ -1,5 +1,5 @@
 # fx3fun
-Charles' playground for the Cypress FX3.  Specifically I'm interested in the CYUSB3011-BZXC/CYUSB3012. 
+Treat your Cypress FX3 a little like a logic analyzer or realtime software defined bus.  Specifically I'm interested in the CYUSB3011-BZXC/CYUSB3012. 
 
 I'm trying to turn it into a logic analyzer.  I've been playing with a kit, specifically the $45 http://www.cypress.com/documentation/development-kitsboards/cyusb3kit-003-ez-usb-fx3-superspeed-explorer-kit - and I've found it to be incredibly powerful.  This project is split up into a few components.
 
