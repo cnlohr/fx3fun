@@ -108,6 +108,10 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 	}
 
 	i = 0;
+	
+	//If we get several non-16k packets, add a delay to kick it back into 16k mode.
+	int non16kpktcount = 0;
+	
 	do
 	{
 		//int wResult = WaitForIO( ep, &ovLapStatus[i], 1000 );
@@ -141,21 +145,24 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;
 				
 				//Yurrffff - Bug in Windows - if we have 32768 byte packets we have to flip the sgroups.
+				//Sometimes.
+				//Other times that's wrong.
 				if( iso->Length )
 				{
 					if( iso->Length > 16384 )
 					{
-						if( callback( id, ep, ptrbase+16384, 16384 ) )
-							break;
-						if( callback( id, ep, ptrbase, iso->Length-16384 ) )
+						if( non16kpktcount++ >= 10 )
+						{
+							Sleep( 50 );
+							non16kpktcount = 0;
+							DEBUGINFO( "Warning: received too many non16k packets. Attempting to herk stream\n" );
+							continue;
+						}
+					}
+					if( callback( id, ep, ptrbase, iso->Length ) )
 						break;
-					}
-					else
-					{
-						if( callback( id, ep, ptrbase, iso->Length ) )
-							break;
-					}
 				}
+				memset( ptrbase, 0, iso->Length );
 				ptrbase += ep->MaxPktSize;
 			}
 			if( pk != pkts ) break;
