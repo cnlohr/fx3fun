@@ -490,7 +490,15 @@ uint16_t evdata /* Event data */
 		}
 		CyU3PUsbLPMEnable();
 		break;
-
+	case CY_U3P_USB_EVENT_SOF_ITP:
+	{
+		//volatile uint32_t * LPPROT_ITP_TIMESTAMP = (volatile uint32_t*)0xE0033434;
+		// BIG NOTE - we output a copy of the ITP's 8th bit on GPIO 29.
+		volatile uint32_t * LPPROT_FRAMECNT = (volatile uint32_t*)0xE0033428;
+		uint8_t val = ((*(LPPROT_FRAMECNT))>>8)&1;
+		CyU3PGpioSimpleSetValue( 29, val );
+		break;
+	}
 	default:
 		break;
 	}
@@ -554,6 +562,7 @@ static void PibEventCallback(CyU3PPibIntrType cbType, uint16_t cbArg) {
 			break;
 		}
 	}
+	CyU3PUsbEnableITPEvent( CyTrue );
 }
 
 /* This function initializes the USB Module, sets the enumeration descriptors.
@@ -609,6 +618,18 @@ void CyFxIsoSrcApplnInit(void) {
 		CyFxAppErrorHandler(apiRetStatus);
 	}
 
+	//19 = CTRL[2]
+	CyU3PGpioSimpleConfig_t cfg =
+	{
+		.driveHighEn = 1 & 0x01,
+		.driveLowEn = 1 & 0x01,
+		.inputEn = 0 & 0x01,
+		.outValue = 1 & 0x01,
+		.intrMode = CY_U3P_GPIO_NO_INTR,
+	};
+	CyU3PDeviceGpioOverride( 29, CyTrue );
+	CyU3PGpioSetSimpleConfig( 29, &cfg);
+
 	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Past GPIO Init\r\n");
 
 	//Continue normal start
@@ -628,6 +649,8 @@ void CyFxIsoSrcApplnInit(void) {
 
 	/* Setup the callback to handle the USB events. */
 	CyU3PUsbRegisterEventCallback(CyFxIsoSrcApplnUSBEventCB);
+
+	CyU3PUsbEnableITPEvent( CyTrue );
 
 	/* Register a callback to handle LPM requests from the USB 3.0 host. */
 	CyU3PUsbRegisterLPMRequestCallback(CyFxIsoSrcApplnLPMRqtCB);
