@@ -270,13 +270,14 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		xfr[i] = libusb_alloc_transfer( nrbuffers );
 		if (!xfr[i])
 		{
+			fprintf( stderr, "libusb_alloc_transfer failure.\n" );
 			free( rbuf );
 			return -6;
 		}
 
 		if ( 1 ) // EP_ISO_IN  (We currently don't use the alternate)
 		{
-			libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize, nrbuffers, cb_xfr, transferinfo, 5000);
+			libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize*nrbuffers, nrbuffers, cb_xfr, transferinfo, 5000);
 			libusb_set_iso_packet_lengths(xfr[i],buffersize);
 		}
 		else
