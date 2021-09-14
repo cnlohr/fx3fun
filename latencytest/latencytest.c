@@ -38,9 +38,10 @@ void * CallbackThread( void * v )
 #if defined( WINDOWS ) || defined( WIN32)
 		CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 65536*4, 32,  callback, 0 );
 #else
-		CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 32768, 16,  callback, 0 );
+		CyprIODoCircularDataXferTx( &eps.CypIOEndpoints[0], 16834, 16,  callback, 0 );
 #endif
 		printf( "CALLBACK THREAD FAILED\n" );
+		OGUSleep( 100000 );
 	}
 }
 
