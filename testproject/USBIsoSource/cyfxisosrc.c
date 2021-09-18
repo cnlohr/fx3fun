@@ -353,9 +353,9 @@ void CyFxIsoSrcApplnStop(void) {
 }
 
 
-CyU3PGpioSimpleConfig_t cfgIn = { 0, 0, 0, 1, 0 };
+CyU3PGpioSimpleConfig_t cfgIn = { 1, 0, 0, 1, 0 };
 CyU3PGpioSimpleConfig_t cfgLo = { 0, 1, 0, 0, 0 };
-CyU3PGpioSimpleConfig_t cfgHi = { 1, 0, 0, 0, 0 };
+CyU3PGpioSimpleConfig_t cfgHi = { 1, 0, 1, 0, 0 };
 
 #define SDAP par1
 #define SCLP par2
@@ -364,13 +364,13 @@ CyU3PGpioSimpleConfig_t cfgHi = { 1, 0, 0, 0, 0 };
 void I2CDELAY() { 	int i; for( i = 0; i < 200; i++ ) asm volatile( "nop" ); }
 void RELEASE( int x )
 {
-	CyU3PGpioSetSimpleConfig( x, &cfgIn );
+	CyU3PGpioSetSimpleConfig( x & 0x7f, (x&0x80)?(&cfgHi):(&cfgIn) );
 	I2CDELAY();
 }
 
 void HOLD_LO( int x )
 {
-	CyU3PGpioSetSimpleConfig( x, &cfgLo );
+	CyU3PGpioSetSimpleConfig( x & 0x7f, &cfgLo );
 	I2CDELAY();
 }
 
@@ -655,6 +655,7 @@ void CyFxIsoSrcApplnInit(void) {
 	/* Register a callback to handle LPM requests from the USB 3.0 host. */
 	CyU3PUsbRegisterLPMRequestCallback(CyFxIsoSrcApplnLPMRqtCB);
 
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "Setting USB Descriptors\r\n");
 	/* Set the USB Enumeration descriptors */
 
 	/* Super speed device descriptor. */
@@ -764,6 +765,8 @@ void CyFxIsoSrcApplnInit(void) {
 				apiRetStatus);
 		CyFxAppErrorHandler(apiRetStatus);
 	}
+
+	CyU3PDebugPrint( CY_FX_DEBUG_PRIORITY, "USB Pins Connected\r\n");
 }
 
 /* Entry function for the IsoSrcAppThread. */
@@ -823,8 +826,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 								.outValue = (par2>>3) & 0x01,
 								.intrMode = CY_U3P_GPIO_NO_INTR,
 							};
-							CyU3PDeviceGpioOverride( par1, CyTrue );
-							CyU3PReturnStatus_t apiRetStatus = CyU3PGpioSetSimpleConfig( par1, &cfg);
+							CyU3PDeviceGpioOverride( par1 & 0x7f, CyTrue );
+							CyU3PReturnStatus_t apiRetStatus = CyU3PGpioSetSimpleConfig( par1 & 0x7f, &cfg);
 							CyU3PDebugPrint (4, "CyU3PGpioSetSimpleConfig = %d {%d = %d %d %d %d }\n", apiRetStatus, par1, cfg.driveHighEn, cfg.driveLowEn, cfg.inputEn, cfg.outValue );
 							reply[0] = apiRetStatus;
 							replylen = 1;
@@ -833,22 +836,22 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						case 0x02: //GPIO Read.
 						{
 							CyBool_t v;
-							reply[0] = CyU3PGpioSimpleGetValue( par1, &v );
+							reply[0] = CyU3PGpioSimpleGetValue( par1 & 0x7f, &v );
 							reply[1] = v;
 							replylen = 2;
 							break;
 						}
 						case 0x03: //GPIO Write
 						{
-							reply[1] = CyU3PGpioSimpleSetValue( par1, par2 );
+							reply[1] = CyU3PGpioSimpleSetValue( par1 & 0x7f, par2 );
 							replylen = 1;
 							break;
 						}
 
 						case 0x04: //Send I2C Start
 						{
-							CyU3PDeviceGpioOverride( SCLP, CyTrue );
-							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							RELEASE(SCLP);
@@ -858,8 +861,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						}
 						case 0x05: //Send I2C Stop
 						{
-							CyU3PDeviceGpioOverride( SCLP, CyTrue );
-							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							HOLD_LO( SDAP );
@@ -869,8 +872,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						}
 						case 0x06: //Send I2C Byte
 						{
-							CyU3PDeviceGpioOverride( SCLP, CyTrue );
-							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							replylen = 2;
@@ -891,7 +894,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 								I2CDELAY();
 								HOLD_LO( SCLP );
 							}
-							RELEASE( SDAP );
+							RELEASE( SDAP & 0x7F ); //Actually tristate!
 							RELEASE( SCLP );
 							I2CDELAY();
 							I2CDELAY();
@@ -900,17 +903,18 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							reply[0] = CyU3PGpioSimpleGetValue( SDAP, &v );
 							reply[1] = v;
 							HOLD_LO( SCLP );
+							RELEASE( SDAP ); // Potentially drive.
 							break;
 						}
 						case 0x07: //Get I2C Byte
 						case 0x08: //Get I2C Byte w/NAK
 						{
-							CyU3PDeviceGpioOverride( SCLP, CyTrue );
-							CyU3PDeviceGpioOverride( SDAP, CyTrue );
+							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
+							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
 
 							replylen = 2;
 							reply[0] = 0;
-							RELEASE( SDAP );
+							RELEASE( SDAP & 0x7f ); //Actually tristate
 							uint8_t rv = 0;
 							int i;
 							for( i = 0; i < 8; i++ )
@@ -921,7 +925,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 								I2CDELAY();
 								rv <<= 1;
 								CyBool_t v;
-								reply[0] |= CyU3PGpioSimpleGetValue( SDAP, &v );
+								reply[0] |= CyU3PGpioSimpleGetValue( SDAP & 0x7f, &v );
 								rv |= !!v;
 								HOLD_LO( SCLP );
 							}
@@ -1110,7 +1114,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						}
 						}
 						CyU3PUsbSendEP0Data(replylen, (uint8_t*) reply);  //Sends back reply
-						CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d G1: %d WV: %d\n", opcode, par1, par2, par3, replylen, glCtrlDat0, wValue );
+						//CyU3PDebugPrint (4, "DD { %d %d %d %d } Len = %d G1: %d WV: %d\n", opcode, par1, par2, par3, replylen, glCtrlDat0, wValue );
 						//
 						break;
 					}
