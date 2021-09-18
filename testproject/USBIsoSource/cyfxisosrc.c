@@ -817,7 +817,10 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							break;
 						case 0x01: //GPIO Config.
 						{
-								//25 = CTRL[8] --> See https://github.com/baidu/boteye_sensor/blob/302fc586ae361b0d0e49118a67dc88c3a0fa88a1/firmware/include/fx3_bsp.h
+							//25 = CTRL[8] --> See https://github.com/baidu/boteye_sensor/blob/302fc586ae361b0d0e49118a67dc88c3a0fa88a1/firmware/include/fx3_bsp.h
+
+							//Usage: par1 = which GPIO
+							//       par2 = 0b pull down / pull up       outValue / in enable / drive low en / drive high en
 							CyU3PGpioSimpleConfig_t cfg =
 							{
 								.driveHighEn = (par2>>0) & 0x01,
@@ -827,6 +830,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 								.intrMode = CY_U3P_GPIO_NO_INTR,
 							};
 							CyU3PDeviceGpioOverride( par1 & 0x7f, CyTrue );
+							CyU3PGpioSetIoMode( par1 & 0x7f, (CyU3PGpioIoMode_t)(( par2 >> 4 ) & 3) );
 							CyU3PReturnStatus_t apiRetStatus = CyU3PGpioSetSimpleConfig( par1 & 0x7f, &cfg);
 							CyU3PDebugPrint (4, "CyU3PGpioSetSimpleConfig = %d {%d = %d %d %d %d }\n", apiRetStatus, par1, cfg.driveHighEn, cfg.driveLowEn, cfg.inputEn, cfg.outValue );
 							reply[0] = apiRetStatus;
@@ -852,6 +856,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						{
 							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
 							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
+							CyU3PGpioSetIoMode( SCLP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
+							CyU3PGpioSetIoMode( SDAP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							RELEASE(SCLP);
@@ -863,6 +869,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						{
 							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
 							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
+							CyU3PGpioSetIoMode( SCLP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
+							CyU3PGpioSetIoMode( SDAP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							HOLD_LO( SDAP );
@@ -874,6 +882,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						{
 							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
 							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
+							CyU3PGpioSetIoMode( SCLP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
+							CyU3PGpioSetIoMode( SDAP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
 
 							//Par1 (SDA), Par2 (SCL) = GPIOs for I2C start.
 							replylen = 2;
@@ -911,6 +921,8 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						{
 							CyU3PDeviceGpioOverride( SCLP & 0x7f, CyTrue );
 							CyU3PDeviceGpioOverride( SDAP & 0x7f, CyTrue );
+							CyU3PGpioSetIoMode( SCLP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
+							CyU3PGpioSetIoMode( SDAP & 0x7f, CY_U3P_GPIO_IO_MODE_WPU );
 
 							replylen = 2;
 							reply[0] = 0;
