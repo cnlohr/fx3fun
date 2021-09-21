@@ -428,6 +428,7 @@ CyBool_t CyFxIsoSrcApplnUSBSetupCB(	uint32_t setupdat0, /* SETUP Data 0 */
 			sendback[2] = dmaevent;
 			CyU3PUsbSendEP0Data(12, (uint8_t*) sendback);  //Sends back "hello"
 			if (KeepDataAlive == 0) {
+				CyFxIsoSrcApplnStop();
 				CyFxIsoSrcApplnStart();
 				CyU3PGpifSMStart(START, ALPHA_START);
 			}
