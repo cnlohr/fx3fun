@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define DEBUGINFO(x...) fprintf( stderr, x );
+#define DEBUGINFO(format, ...) fprintf(stderr, format, ##__VA_ARGS__)
 
 static void CyprIOEPFromConfig( struct CyprIOEndpoint * ep, struct CyprIO * ths, int iface, PUSB_ENDPOINT_DESCRIPTOR epd, PUSB_CONFIGURATION_DESCRIPTOR cfg, PUSB_INTERFACE_DESCRIPTOR pIntfcDescriptor, USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR* SSEndPtDescriptor )
 {
@@ -67,25 +67,45 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 {
 	int i;
 	int TimeOut = 1000;
-	OVERLAPPED ovLapStatus[nrbuffers];
-	uint8_t * buffers[nrbuffers];
-	DWORD buflens[nrbuffers];
-	uint8_t * xmitbuffers[nrbuffers];
-	PSINGLE_TRANSFER pTransfers[nrbuffers];
 	DWORD dwReturnBytes = 0;
+
+	if( ep->MaxPktSize == 0 )
+	{
+		fprintf( stderr, "ERROR: Your endpoint max packet size is zero.\n" );
+		return -99;
+	}
 
 	int pkts;
 	pkts = buffersize / ep->MaxPktSize;       // Number of packets implied by buffersize & pktSize
     if (buffersize % ep->MaxPktSize) pkts++;
     int iXmitBufSize = sizeof (SINGLE_TRANSFER) + (pkts * sizeof(ISO_PACKET_INFO));
 
+	OVERLAPPED *ovLapStatus  = malloc( nrbuffers * sizeof( OVERLAPPED ) );
+	uint8_t **buffers = malloc( nrbuffers * sizeof( uint8_t * ) );
+	uint8_t **xmitbuffers = malloc( nrbuffers * sizeof( uint8_t * ) );
+	for( i = 0; i < nrbuffers; i++ )
+	{
+		buffers[i] = (uint8_t*)malloc( buffersize );
+		xmitbuffers[i] =  (uint8_t*)malloc( iXmitBufSize );
+	}
+
+	BOOL malloc_success = ovLapStatus && buffers && xmitbuffers;
+	for ( i = 0; i < nrbuffers; i++ )
+	{
+		malloc_success &= !!buffers[ i ];
+		malloc_success &= !!xmitbuffers[ i ];
+	}
+	if ( !malloc_success )
+	{
+		fprintf( stderr, "Error allocating xmit buffers\n" );
+		goto function_exit;
+	}
+	
 	for( i = 0; i < nrbuffers; i++ )
 	{
 		memset(&ovLapStatus[i],0,sizeof(OVERLAPPED));
 		ovLapStatus[i].hEvent = CreateEvent(NULL, 0, 0, NULL);
-		buffers[i] = (uint8_t*)malloc( buffersize );
-		uint8_t * pXmitBuf = xmitbuffers[i] = (uint8_t*)malloc( iXmitBufSize );		
-		pTransfers[i] = (PSINGLE_TRANSFER)pXmitBuf;
+		uint8_t *pXmitBuf = xmitbuffers[ i ];
 		ZeroMemory (pXmitBuf, iXmitBufSize);
 		PSINGLE_TRANSFER pTransfer = (PSINGLE_TRANSFER) pXmitBuf;
 		pTransfer->ucEndpointAddress = ep->Address;
@@ -102,7 +122,7 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
 			xmitbuffers[i],
 			iXmitBufSize,
-			buffers[i], buffersize,
+			buffers[ i ], buffersize,
 			&dwReturnBytes,
 			&ovLapStatus[i]);
 	}
@@ -124,7 +144,7 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 			break;
 		}
 		DWORD bytes = 0;
-		BOOL rResult = GetOverlappedResult(ep->parent->hDevice, l, &bytes, FALSE);
+		BOOL rResult = (BOOL)GetOverlappedResult(ep->parent->hDevice, l, &bytes, FALSE);
 		//Look at ovLapStatus[i]
 		if( !rResult )
 		{
@@ -137,9 +157,9 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		//Got the data.  call our callback.
 		if( bytes )
 		{
-			PSINGLE_TRANSFER pst = pTransfers[i];
+			PSINGLE_TRANSFER pst = ( ( PSINGLE_TRANSFER *)xmitbuffers )[ i ];
 			int pk;
-			uint8_t * ptrbase = buffers[i];
+			uint8_t *ptrbase = buffers[ i ];
 			for( pk = 0; pk < pkts; pk++ )
 			{
 				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;
@@ -173,7 +193,7 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 			IOCTL_ADAPT_SEND_NON_EP0_DIRECT,
 			xmitbuffers[i],
 			iXmitBufSize,
-			buffers[i], buffersize,
+			buffers[ i ], buffersize,
 			&dwReturnBytes,
 			l);
 
@@ -181,15 +201,23 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		i++;
 		if( i == nrbuffers ) i = 0;
 	} while( 1 );
-	
+
+function_exit:
 	for( i = 0; i < nrbuffers; i++ )
 	{
 		CloseHandle( ovLapStatus[i].hEvent );
-		free( buffers[i] );
-		
-		//Somehow these seem automatically freed?
-		//free( xmitbuffers[i] );
 	}
+
+	free( ovLapStatus );
+
+	for ( i = 0; i < nrbuffers; i++ )
+	{
+		free( buffers[ i ] );
+		free( xmitbuffers[ i ] );
+	}
+	free( buffers );
+	free( xmitbuffers );
+
 	return -1;
 }
 
@@ -270,21 +298,12 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		xfr[i] = libusb_alloc_transfer( nrbuffers );
 		if (!xfr[i])
 		{
-			fprintf( stderr, "libusb_alloc_transfer failure.\n" );
 			free( rbuf );
 			return -6;
 		}
 
-		if ( 1 ) // EP_ISO_IN  (We currently don't use the alternate)
-		{
-			libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize*nrbuffers, nrbuffers, cb_xfr, transferinfo, 5000);
-			libusb_set_iso_packet_lengths(xfr[i],buffersize);
-		}
-		else
-		{
-			//Currently bulk transfers are not supported.
-			libusb_fill_bulk_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, buffersize, cb_xfr, transferinfo, 5000);
-		}
+		libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, (buffersize*nrbuffers), nrbuffers, cb_xfr, transferinfo, 5000);
+		libusb_set_iso_packet_lengths(xfr[i],buffersize);
 
 		int ret = libusb_submit_transfer(xfr[i]);
 		if( ret < 0 )
@@ -361,7 +380,7 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 			
 			devInterfaceData.cbSize = sizeof(devInterfaceData);
 			
-            BOOL bRetVal = SetupDiEnumDeviceInterfaces (hwDeviceInfo, 0, (LPGUID) &DrvGuid, iDevice, &devInterfaceData);
+            BOOL bRetVal = (BOOL)SetupDiEnumDeviceInterfaces (hwDeviceInfo, 0, (LPGUID) &DrvGuid, iDevice, &devInterfaceData);
 			//Make sure we get a valid handle first.			
 			if( !bRetVal )
 			{
@@ -388,7 +407,7 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 			devInfoData.cbSize = sizeof(devInfoData);
 			
 			//Retrieve the information from Plug and Play */
-			bRetVal = SetupDiGetDeviceInterfaceDetailA (hwDeviceInfo,
+			bRetVal = ( char )SetupDiGetDeviceInterfaceDetailA (hwDeviceInfo,
 				&devInterfaceData,
 				functionClassDeviceData,
 				predictedLength,
@@ -471,6 +490,8 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 	static int inited;
 	int rc;
 
+	memset( ths, sizeof( *ths ), 0 );
+
 	rc = libusb_init(NULL);
 	if (rc < 0) {
 		fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(rc));
@@ -504,10 +525,10 @@ int CyprIOControl(struct CyprIO * ths, uint32_t cmd, uint8_t * XferBuf, uint32_t
 {
     if ( ths->hDevice == INVALID_HANDLE_VALUE ) return 0;
 	DWORD xfer;
-    BOOL bDioRetVal = DeviceIoControl(ths->hDevice, cmd, XferBuf, len, XferBuf, len, &xfer, NULL);
+    BOOL bDioRetVal = (BOOL)DeviceIoControl(ths->hDevice, cmd, XferBuf, len, XferBuf, len, &xfer, NULL);
 	ths->BytesXferedLastControl = xfer;
     if(!bDioRetVal) { ths->LastError = GetLastError(); ths->BytesXferedLastControl = -1; }
-	return !bDioRetVal || (ths->BytesXferedLastControl != len);
+	return !bDioRetVal || (ths->BytesXferedLastControl != (int)len);
 }
 
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout )
@@ -538,14 +559,36 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 	{
 		//Direction Device to Host (in)
 		//int i; for( i = 0; i < buflen; i++ ) printf( "%02x ", buffer[i] );  printf( "\n ((%d))\n", IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER );
-		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, buffer, buflen, &received, NULL);
+
+		// Create event
+		OVERLAPPED  lOverlapped = { 0 };
+		lOverlapped.hEvent = CreateEvent(NULL, 0, 0, NULL);
+
+		int ret = DeviceIoControl (ths->hDevice, IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER, buffer, buflen, buffer, buflen, &received, &lOverlapped);
+		//int trueLength = (USB_COMMON_DESCRIPTOR*)((PCHAR)st + st->BufferOffset)->bLength;
+
+		if ( !ret && ( GetLastError() == ERROR_IO_PENDING) )
+		{
+		  ret = TRUE;     // DeviceIoControl() returns FALSE for errors || pending transactions.  Overlapped transactions will always be pending...
+		}
+		
+		DWORD bytes = 0;
+		BOOL overlap_success = TRUE;
+		overlap_success &= ( WaitForSingleObject(lOverlapped.hEvent, 1000 )                 == WAIT_OBJECT_0 );
+		overlap_success &= ( GetOverlappedResult(ths->hDevice, &lOverlapped, &bytes, FALSE) != 0 );
+
+		if ( overlap_success )
+		{
+		  received = bytes;
+		}
+
 		//int trueLength = (USB_COMMON_DESCRIPTOR*)((PCHAR)st + st->BufferOffset)->bLength;
 
 		if( !ret || received < sizeof( SINGLE_TRANSFER ) )
 		{
 			ths->BytesXferedLastControl = -1;
 			free( buffer );
-			return -GetLastError();
+			return (int)GetLastError() * -1;
 		}
 		received-=sizeof( SINGLE_TRANSFER ); 
 		ths->BytesXferedLastControl = received;
@@ -564,7 +607,7 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 		{
 			ths->BytesXferedLastControl = -1;
 			free( buffer );
-			return -GetLastError();
+			return (int)GetLastError() * -1;
 		}
 		ths->BytesXferedLastControl = 0;
 		free( buffer );
@@ -583,7 +626,7 @@ int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t b
 int CyprIOGetString( struct CyprIO * ths, uint16_t *str, uint8_t sIndex)
 {
 	uint8_t buffer[USB_STRING_MAXLEN+2];
-	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8) | sIndex, ths->StrLangID, buffer, sizeof( buffer ), 1000 );
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_STRING_DESCRIPTOR_TYPE<<8) | sIndex, (uint16_t)ths->StrLangID, buffer, sizeof( buffer ), 1000 );
 	if( ret <= 0 )
 	{
 		return ret;
@@ -622,14 +665,16 @@ static int PrintWString( uint16_t * ct )
 	for( i = 0; ct[i]; i++ )
 	{
 		printf( "%c", ct[i] );
-	}		
+	}
+
+	return 0;
 }
 
 static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 {
 	
 	uint8_t buffer[1024];
-	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_CONFIGURATION_DESCRIPTOR_TYPE<<8) | descIndex, 0, buffer, sizeof( buffer ), 1000 );
+	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_CONFIGURATION_DESCRIPTOR_TYPE<<8) | (uint16_t)descIndex, 0, buffer, sizeof( buffer ), 1000 );
 	//printf( "RET: %d\n", ret );
 	if( ret <= 0 )
 	{
@@ -645,8 +690,6 @@ static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 {
 	char buf[256];
-	int bRetVal;
-    uint32_t length;
 	USB_COMMON_DESCRIPTOR cmnDescriptor;
 
 	int ret = CyprIOControlTransfer( ths, 0x80, USB_REQUEST_GET_DESCRIPTOR, (USB_DEVICE_DESCRIPTOR_TYPE<<8), 0, (uint8_t*)&ths->USBDeviceDescriptor, sizeof(USB_DEVICE_DESCRIPTOR), 2000 );
@@ -711,13 +754,6 @@ int CyprIOGetDevDescriptorInformation( struct CyprIO * ths )
 			return -1;
 		}
 		printf( "Got Config (length %d): (Value: %d)\n", ths->USBConfigDescriptors[i]->wTotalLength, ths->USBConfigDescriptors[i]->bConfigurationValue );
-		int k;
-		uint8_t * p = (uint8_t*)ths->USBConfigDescriptors[i];
-//		for( k = 0; k < ths->USBConfigDescriptors[i]->wTotalLength; k++)
-//		{
-//			printf( " %02x", p[k] );
-//		}
-//		printf ("\n" );
 	}
 	printf( "Selected %d\n", i );
 	
@@ -739,14 +775,10 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 
 	//All the device device info is now enumerated.  Need to actually do stuff.
 	//Honestly, I don't understand the value of this section of code I've translated.
-	int foundconfig = -1;
 	int nrdesc = sizeof( ths->USBConfigDescriptors ) / sizeof( ths->USBConfigDescriptors[0] );
 	int AltInterfaces = 0;
 	int ifaces = 0;
 	
-	int use_this_config = 0;
-	int use_this_interface = 0;
-
 	//This code mimics what's going on in CCyUSBConfig::CCyUSBConfig(...).
 	if( !ths->USBConfigDescriptors[use_config] )
 	{
@@ -758,13 +790,8 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	PUSB_CONFIGURATION_DESCRIPTOR pConfigDescr = ths->USBConfigDescriptors[use_config];
 	int tLen = pConfigDescr->wTotalLength;
 	uint8_t * desc = (uint8_t*)pConfigDescr;
-	int bytesConsumed = pConfigDescr->bLength;
-
-	printf( "Looping:\n");
 	
-	int totallen = pConfigDescr->wTotalLength;
-
-	int totalread = 0;
+	printf( "Looping:\n");
 	
 	uint8_t* end = desc + tLen;
 	desc += pConfigDescr->bLength;
@@ -784,7 +811,6 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 			printf( "Iface: %d:%d = %d / %d eps\n", use_config, ifaces, interfaceDesc->bDescriptorType, interfaceDesc->bNumEndpoints );
 
 			int endpoints = interfaceDesc->bNumEndpoints;
-			int wTotalLength = interfaceDesc->bLength;
 			
 			//Mostly from CCyUSBInterface::CCyUSBInterface(HANDLE handle, PUSB_INTERFACE_DESCRIPTOR pIntfcDescriptor)
 			//PUCHAR epdesc = (PUCHAR)interfaceDesc  + interfaceDesc->bLength;
@@ -838,7 +864,7 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 	//If need be, use the libusb functions to the same.
 #endif
 	
-	CyprIOControlTransfer( ths, 0x00, USB_REQUEST_SET_INTERFACE, use_iface, 0, 0, 0, 1000 );
+	CyprIOControlTransfer( ths, 0x00, USB_REQUEST_SET_INTERFACE, (uint16_t)use_iface, 0, 0, 0, 1000 );
 
 #if defined(WINDOWS) || defined( WIN32 )
 
@@ -848,7 +874,6 @@ int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface )
 		DEBUGINFO( "Error: can't get alt interface setting\n" );
 	}
 	//Now, we write code that mimics SetConfig(...)??
-	int configs = ths->USBDeviceDescriptor.bNumConfigurations;
 	CyprIOControl(ths, IOCTL_ADAPT_SELECT_INTERFACE, (uint8_t*)&use_iface, 1L);
 	
 #else

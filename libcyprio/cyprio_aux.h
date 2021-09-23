@@ -93,13 +93,17 @@
 	);
 	
 
-	
+#else
+	#include <setupapi.h>
+	#include <winioctl.h>
+#endif
 	
 	
 	#pragma pack(1)
-	
-	
-	
+	#pragma warning( push )
+	#pragma warning( disable : 4201 )	// nonstandard extension used : nameless struct/union
+	#pragma warning( disable : 4214 )   // nonstandard extension used : bit field types other than int
+
 	//These are from cyioctl.h
 
 	#define DIR_HOST_TO_DEVICE 0
@@ -263,10 +267,6 @@
 	#define IOCTL_ADAPT_GET_CURRENT_FRAME         CTL_CODE(FILE_DEVICE_UNKNOWN, IOCTL_ADAPT_INDEX+20, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 	#define NUMBER_OF_ADAPT_IOCTLS 21 // Last IOCTL_ADAPT_INDEX + 1
-#else
-	#include <setupapi.h>
-	#include <winioctl.h>
-#endif
 
 #else
 	#include <libusb-1.0/libusb.h>
@@ -312,6 +312,7 @@ typedef struct _USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR
 	USHORT bBytesPerInterval;
 }USB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR,*PUSB_SUPERSPEED_ENDPOINT_COMPANION_DESCRIPTOR;
 
-
+#pragma pack()
+#pragma warning( pop )
 
 #endif
