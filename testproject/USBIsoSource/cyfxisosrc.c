@@ -1100,41 +1100,46 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 								CyU3PDeviceReset( CyFalse );
 
 								// Code should not run.
-								CyU3PUsbAckSetup();
 							}
-							//Write wIndex (LSW) ;;; wValue (MSW)
-							uint32_t writeAddress = wIndex + (((uint32_t)wValue) << 16);
-							uint8_t b512[512];
-							while( wLength )
+							else
 							{
-								int towrite = wLength;
-								if( towrite > 512 ) towrite = 512;
-								memset( b512, 0xaa, 512 );
-								uint16_t rc = 512;
-								int r = CyU3PUsbGetEP0Data( towrite, b512, &rc );
-								CyU3PDebugPrint (4, "C:%d/%d\n", rc, r );
-
-								int page = 0;
-								for( page = 0; page < 2; page++ )
+								//Write wIndex (LSW) ;;; wValue (MSW)
+								uint32_t writeAddress = wIndex + (((uint32_t)wValue) << 16);
+								uint8_t b512[512];
+								while( wLength )
 								{
-									preamble.length = 3;
-									preamble.buffer[0] = 0xA0 | ((writeAddress>>15)&6);
-									preamble.buffer[1] = ((writeAddress>>8)&0xff)+page; //address
-									preamble.buffer[2] = writeAddress&0xff; //address
-									preamble.ctrlMask = 0x0000;
-									stat = CyU3PI2cTransmitBytes(&preamble, b512+page*256, 256, 0);
-									if (stat != CY_U3P_SUCCESS)
-										CyFxAppErrorHandler(stat);
+									int towrite = wLength;
+									if( towrite > 512 ) towrite = 512;
 
-									preamble.length = 1;
-									stat |= CyU3PI2cWaitForAck(&preamble, 200);
-									if (stat != CY_U3P_SUCCESS)
-										CyFxAppErrorHandler(stat);
+									uint16_t rc = towrite;
+									int r = CyU3PUsbGetEP0Data( towrite, b512, &rc );
+									CyU3PDebugPrint (4, "C:%d/%d\n", rc, r );
 
-									CyU3PDebugPrint (4, "WR:%d/%d/%d/%d/%d\n", writeAddress, towrite, stat, b512[page*256], rc );
+									int page = 0;
+									for( page = 0; page < 2; page++ )
+									{
+										if( towrite <= 256 && page == 1 ) break;
+										preamble.length = 3;
+										preamble.buffer[0] = 0xA0 | ((writeAddress>>15)&6);
+										preamble.buffer[1] = ((writeAddress>>8)&0xff)+page; //address
+										preamble.buffer[2] = writeAddress&0xff; //address
+										preamble.ctrlMask = 0x0000;
+										int towrite_this = towrite - page * 256;
+										if( towrite_this > 256 ) towrite_this = 256;
+										stat = CyU3PI2cTransmitBytes(&preamble, b512+page*256, towrite, 0);
+										if (stat != CY_U3P_SUCCESS)
+											CyFxAppErrorHandler(stat);
+
+										preamble.length = 1;
+										stat |= CyU3PI2cWaitForAck(&preamble, 200);
+										if (stat != CY_U3P_SUCCESS)
+											CyFxAppErrorHandler(stat);
+
+										CyU3PDebugPrint (4, "WR:%d/%d/%d/%d/%d\n", writeAddress, towrite, stat, b512[page*256], rc );
+									}
+									wLength -= towrite;
+									writeAddress += towrite;
 								}
-								wLength -= towrite;
-								writeAddress += towrite;
 							}
 							CyU3PUsbAckSetup();
 						}
