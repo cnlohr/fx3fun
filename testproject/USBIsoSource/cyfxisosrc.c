@@ -1126,7 +1126,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 										preamble.ctrlMask = 0x0000;
 										int towrite_this = towrite - page * 256;
 										if( towrite_this > 256 ) towrite_this = 256;
-										stat = CyU3PI2cTransmitBytes(&preamble, b512+page*256, towrite, 0);
+										stat = CyU3PI2cTransmitBytes(&preamble, b512+page*256, towrite_this, 0);
 										if (stat != CY_U3P_SUCCESS)
 											CyFxAppErrorHandler(stat);
 
