@@ -23,9 +23,12 @@
 int main( int argc, char ** argv )
 {
 	int do_flash_i2c = 0;
+	int desired_pid = 0x4720;
+	int dont_use_bootloader = 0;
 	const char * file = 0;
 	int i;
 	int showhelp = 0;
+	int do_reboot = 1;
 	
 	for( i = 1; i < argc; i++ )
 	{
@@ -40,9 +43,22 @@ int main( int argc, char ** argv )
 				{
 					do_flash_i2c = 1;
 				}
+				else if( *proc == 'c' )
+				{
+					dont_use_bootloader = 1;
+				}
 				else if( *proc == 'f' )
 				{
 					file = argv[i+1];
+					i++;
+				}
+				else if( *proc == 'n' )
+				{
+					do_reboot = 0;
+				}
+				else if( *proc == 'p' )
+				{
+					desired_pid = atoi( argv[i+1] );
 					i++;
 				}
 				else
@@ -61,7 +77,12 @@ int main( int argc, char ** argv )
 		
 	if( showhelp || file == 0 || file[0] == 0 )
 	{
-		fprintf(stderr, "Usage: %s [-hi] [-f file...]\n", argv[0]);
+		fprintf(stderr, "Usage: %s [-chi] [-p pid] [-f file...]\n", argv[0]);
+		fprintf(stderr, " -c: Don't use bootload (your app must be able to write flash!)\n");
+		fprintf(stderr, " -h: Show help\n");
+		fprintf(stderr, " -p: use specific PID\n");
+		fprintf(stderr, " -i: Use i2c flash\n");
+		fprintf(stderr, " -n: do not reboot\n");
 		exit(-1);
 	}
 	
@@ -70,13 +91,17 @@ int main( int argc, char ** argv )
 		FILE * firmware = fopen( file, "rb" );
 		if( !firmware || ferror(firmware) )
 		{
-			fprintf( stderr, "Error: can't open file for permanant write.\n" );
+			fprintf( stderr, "Error: can't open file \"%s\" for permanant write.\n", file );
 			return -5;
 		}
-		int r = CyprIOBootloaderImage( "CyBootProgrammer.img" );
-		if( r )
+		
+		if( !dont_use_bootloader )
 		{
-			printf("Failed to flash bootloader.\n");
+			int r = CyprIOBootloaderImage( "CyBootProgrammer.img" );
+			if( r )
+			{
+				printf("Failed to flash bootloader.\n");
+			}
 		}
 		
 		//Bootloader OK.  Need to flash binary.
@@ -89,9 +114,10 @@ int main( int argc, char ** argv )
 		
 		struct CyprIO eps;
 		
-		if( CyprIOConnect( &eps, 0, 0x04b4, 0x4720 ) )
+		int connected = 0;
+		if( CyprIOConnect( &eps, 0, 0x04b4, desired_pid ) )
 		{
-			fprintf( stderr,"Could not connect to flasher. TODO: Should this function retry?\n" );
+			fprintf( stderr,"Could not connect to flasher.\n" );
 			exit( -5 );
 		}
 
@@ -109,11 +135,21 @@ int main( int argc, char ** argv )
 			int tries;
 			for( tries = 0; tries < 10; tries++ )
 			{
-				int e = CyprIOControlTransfer( &eps, 0x40, 0xba, flashspot>>16, flashspot, buff, r, 5000 );
+				int e = CyprIOControlTransfer( &eps, 0x40, 0xbc, flashspot>>16, flashspot, buff, r, 5000 );
 				if( e == r )
 				{
 					char verify[2048];
-					e = CyprIOControlTransfer( &eps, 0xc0, 0xbb, flashspot>>16, flashspot, verify, r, 5000 );
+					e = CyprIOControlTransfer( &eps, 0xc0, 0xbc, flashspot>>16, flashspot, verify, r, 5000 );
+					int i;
+					#if 0
+					for( i =0 ;i < r; i++ )
+					{
+						if( !(i&15) ) printf( "\n%04x ", i );
+						printf( "%02x %02x // ", (uint8_t)verify[i], (uint8_t)buff[i] );
+					}
+					printf( "\n" );
+					printf( "%02x == %02x   %02x == %02x\n", buff[0], verify[0], buff[256], verify[256] );
+					#endif
 					if( e == r )
 					{
 						if( memcmp( verify, buff, r ) == 0 )
@@ -138,10 +174,13 @@ int main( int argc, char ** argv )
 			flashspot += r;
 		}
 
-		int e = CyprIOControlTransfer( &eps, 0x40, 0xbb, 0, 0, buff, 0, 5000 );
-		if( e )
+		if( do_reboot )
 		{
-			fprintf( stderr, "WARNING: Could not issue finalization\n" );
+			int e = CyprIOControlTransfer( &eps, 0x40, 0xbc, 0, 0, buff, 0, 5000 );
+			if( e )
+			{
+				fprintf( stderr, "WARNING: Could not issue finalization\n" );
+			}
 		}
 		printf( "Flash complete.\n" );
 		CyprIODestroy( &eps );

@@ -75,14 +75,10 @@ uint32_t glDMATxCount = 0; /* Counter to track the number of buffers transmitted
 uint8_t glAltIntf = 0; /* Currently selected Alternate Interface number. */
 uint32_t glCtrlDat0 = 0; /* bmRequestType + bRequest + wValue from control request. */
 uint32_t glCtrlDat1 = 0; /* wIndex + wLength from control request. */
-uint8_t *glEp0Buffer = 0; /* Buffer used to handle vendor specific control requests. */
 
 CyU3PEvent glAppEvent; /* Event group used to defer handling of vendor specific control requests. */
 #define CYFX_ISOAPP_CTRL_TASK   1       /* Deferred event flag indicating pending control request. */
-#define CYFX_ISOAPP_DOUT_RQT    0xD1    /* Example request with OUT data phase. */
-#define CYFX_ISOAPP_DIN_RQT     0xD2    /* Example request with IN data phase. */
 #define CYFX_ISOAPP_NODATA_RQT  0xD3    /* Example request with NO data phase. */
-#define CYFX_ISOAPP_MAX_EP0LEN  64      /* Max. data length supported for EP0 requests. */
 
 /* Application Error Handler */
 void CyFxAppErrorHandler(CyU3PReturnStatus_t apiRetStatus /* API return status */
@@ -433,13 +429,13 @@ CyBool_t CyFxIsoSrcApplnUSBSetupCB(	uint32_t setupdat0, /* SETUP Data 0 */
 			}
 			KeepDataAlive = 1200 * 2;
 		} else if (bRequest == 0xbb) {
-				uint32_t sendback[10];
-				sendback[0] = 0xaabbccdd;
-				sendback[1] = DataOverrunErrors;
-				sendback[2] = dmaevent;
-				CyU3PUsbSendEP0Data(12, (uint8_t*) sendback);  //Sends back "hello"
-				CyFxIsoSrcApplnStop();
-				KeepDataAlive = 0;
+			uint32_t sendback[10];
+			sendback[0] = 0xaabbccdd;
+			sendback[1] = DataOverrunErrors;
+			sendback[2] = dmaevent;
+			CyU3PUsbSendEP0Data(12, (uint8_t*) sendback);  //Sends back "hello"
+			CyFxIsoSrcApplnStop();
+			KeepDataAlive = 0;
 		} else if( bRequest == 0xcc ) {
 			uint8_t buffer[512];
 			uint16_t readCount = 0;
@@ -969,7 +965,7 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							pibClock.isHalfDiv = !!(par2 & 1); 		//Adds 0.5 to divisor
 							pibClock.isDllEnable = !!(par2 & 2);	//For async or master-mode
 							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
-							CyU3PDebugPrint (4, "CyU3PPibInit( %d %d %d)\n", par1, par2, par3 );
+							//CyU3PDebugPrint (4, "CyU3PPibInit( %d %d %d)\n", par1, par2, par3 );
 
 							if( par3 == 1 )
 							{
@@ -1041,19 +1037,6 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							I2CDELAY();
 							I2CDELAY();
 							I2CDELAY();
-
-#if 0
-							if( gpif_is_complex == 1 )
-							{
-								extern int ComplexGPIFLoad();
-								reply[2] = ComplexGPIFLoad();
-							}
-							else
-							{
-								gpif_is_complex = 0;
-								reply[2] = CyU3PGpifLoad(&CyFxGpifConfig);
-							}
-#endif
 							reply[3] = 255;
 							reply[4] = par1;
 							reply[5] = par2;
@@ -1061,67 +1044,11 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							reply[7] = 255;
 							replylen = 8;
 
-							//pibClock.isDllEnable = CyFalse; //Will be enabled by DllConfigure.
-							//CyU3PPibDllConfigure( CYU3P_PIB_DLL_MASTER, par1*2, par2 & 0xf, (par2 >> 4) & 0xf, par3 & 0xf, 0 );
-							//CyU3PPibInit(CyTrue, &pibClock);
-						//	extern int ComplexGPIFLoad();
-						//	reply[1] = ComplexGPIFLoad();
-
-#if 0
-							#define CY_FX3_PIB_DLL_CORE_PHASE_POS   (4)                             /* Position of core clock phase field. */
-							#define CY_FX3_PIB_DLL_SYNC_PHASE_POS   (8)                             /* Position of sync clock phase field. */
-							#define CY_FX3_PIB_DLL_OP_PHASE_POS     (12)                            /* Position of output clock phase field. */
-							#define CY_FX3_PIB_DLL_ENABLE  1
-							#define CY_FX3_PIB_DLL_HIGH_FREQ  2
-							#define CY_FX3_PIB_DLL_RESET_N (1<<30)
-
-							volatile uint32_t * CY_FX3_PIB_DLL_CTRL_REG =  (volatile uint32_t *)0xE0010028;
-							CyU3PPibDeInit();
-
-						    *CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_ENABLE);
-
-						    I2CDELAY();
-						    I2CDELAY();
-						    I2CDELAY();
-
-							int corePhase = par2 & 0xf;
-							int syncPhase = (par2 >> 4) & 0xf;
-							int opPhase = par3 & 0xf;
-							int phaseDelay = par1*2;
-							int enable = ( par3 >> 4 ) & 1;
-							int high = ( par3 >> 4 ) & 2;
-							int slave_mode = (enable)?0:7;
-							*CY_FX3_PIB_DLL_CTRL_REG = (
-								((corePhase & 0x0F) << CY_FX3_PIB_DLL_CORE_PHASE_POS) |
-								((syncPhase & 0x0F) << CY_FX3_PIB_DLL_SYNC_PHASE_POS) |
-								((opPhase & 0x0F)   << CY_FX3_PIB_DLL_OP_PHASE_POS) |
-								high |
-								enable |
-								(phaseDelay<<17) |
-								(slave_mode<<27) |
-								0x80000000
-							);
-
-						    *CY_FX3_PIB_DLL_CTRL_REG &= ~(CY_FX3_PIB_DLL_RESET_N);
-
-						    I2CDELAY();
-						    I2CDELAY();
-						    I2CDELAY();
-
-						    /* Clear Reset */
-
-						    *CY_FX3_PIB_DLL_CTRL_REG |= CY_FX3_PIB_DLL_RESET_N;
-
-						    I2CDELAY();
-						    I2CDELAY();
-						    I2CDELAY();
-
-						    /* Wait for DLL to lock */
-						    //while (!(CY_FX3_PIB_DLL_CTRL_REG & CY_FX3_PIB_DLL_LOCK_STAT));
-
-							//Reconfigure Clock
-							reply[0] = CyU3PPibInit(CyTrue, &pibClock);
-#endif
+							break;
+						}
+						default:
+						{
+							CyU3PDebugPrint (4, "UDC/%d %d %d %d/\n", bReqType, bRequest, wLength, wValue );
 							break;
 						}
 						}
@@ -1130,50 +1057,6 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						//
 						break;
 					}
-					case CYFX_ISOAPP_DOUT_RQT:
-						/* If the user data can fit in our buffer, read it; otherwise, stall the control pipe. */
-						if (wLength <= CYFX_ISOAPP_MAX_EP0LEN) {
-							CyU3PUsbGetEP0Data(wLength, glEp0Buffer, 0);
-
-							/* Write the data received into the I2C EEPROM. */
-							preamble.length = 3;
-							preamble.buffer[0] = 0xA0;
-							preamble.buffer[1] = 0x00;
-							preamble.buffer[2] = 0x00;
-							preamble.ctrlMask = 0x0000;
-							stat = CyU3PI2cTransmitBytes(&preamble, glEp0Buffer,
-									wLength, 0);
-							if (stat != CY_U3P_SUCCESS)
-								CyFxAppErrorHandler(stat);
-
-							preamble.length = 1;
-							stat = CyU3PI2cWaitForAck(&preamble, 200);
-							if (stat != CY_U3P_SUCCESS)
-								CyFxAppErrorHandler(stat);
-						} else
-							CyU3PUsbStall(0, CyTrue, CyFalse);
-						break;
-
-					case CYFX_ISOAPP_DIN_RQT:
-						/* If the requested length is less than our buffer size, send data; otherwise, stall the
-						 control pipe. */
-						if (wLength <= CYFX_ISOAPP_MAX_EP0LEN) {
-							/* Read data from the EEPROM and send to the host. */
-							preamble.length = 4;
-							preamble.buffer[0] = 0xA0;
-							preamble.buffer[1] = 0x00;
-							preamble.buffer[2] = 0x00;
-							preamble.buffer[3] = 0xA1;
-							preamble.ctrlMask = 0x0004;
-							stat = CyU3PI2cReceiveBytes(&preamble, glEp0Buffer,
-									wLength, 0);
-							if (stat == CY_U3P_SUCCESS)
-								CyU3PUsbSendEP0Data(wLength, glEp0Buffer);
-							else
-								CyU3PUsbStall(0, CyTrue, CyFalse);
-						} else
-							CyU3PUsbStall(0, CyTrue, CyFalse);
-						break;
 
 					case CYFX_ISOAPP_NODATA_RQT:
 						/* Stall the control pipe if the host wants any data, otherwise ack and complete the request. */
@@ -1186,11 +1069,83 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 						}
 						break;
 
+					case 0xbc: // Write I2C Flash (Must be 256-byte aligned); Or if write size is 0 write reboots.
+						if( bReqType & 0x80 )
+						{
+							uint8_t buffer[wLength];
+							uint32_t readAddress = wIndex + (((uint32_t)wValue) << 16);
+							/* Read data from the EEPROM and send to the host. */
+							preamble.length = 4;
+							preamble.buffer[0] = 0xA0 | ( (readAddress>>15) & 6);
+							preamble.buffer[1] = (readAddress>>8)&0xff;
+							preamble.buffer[2] = readAddress&0xff;
+							preamble.buffer[3] = 0xA1;
+							preamble.ctrlMask = 0x0004;
+							stat = CyU3PI2cReceiveBytes( &preamble, buffer, wLength, 0 );
+							CyU3PDebugPrint (4, "RD:%d/%d/%d/%d/%d\n", readAddress, wLength, stat,buffer[0], wLength );
+							if (stat == CY_U3P_SUCCESS)
+								CyU3PUsbSendEP0Data(wLength, buffer);
+							else
+								CyU3PUsbStall(0, CyTrue, CyFalse);
+
+							CyU3PDebugPrint (4, "SOK\n" );
+						}
+						else
+						{
+							if( wLength == 0 )
+							{
+								CyU3PDebugPrint (4, "Rebooting\n" );
+
+								// Host->Device (Reboot)
+								CyU3PDeviceReset( CyFalse );
+
+								// Code should not run.
+								CyU3PUsbAckSetup();
+							}
+							//Write wIndex (LSW) ;;; wValue (MSW)
+							uint32_t writeAddress = wIndex + (((uint32_t)wValue) << 16);
+							uint8_t b512[512];
+							while( wLength )
+							{
+								int towrite = wLength;
+								if( towrite > 512 ) towrite = 512;
+								memset( b512, 0xaa, 512 );
+								uint16_t rc = 512;
+								int r = CyU3PUsbGetEP0Data( towrite, b512, &rc );
+								CyU3PDebugPrint (4, "C:%d/%d\n", rc, r );
+
+								int page = 0;
+								for( page = 0; page < 2; page++ )
+								{
+									preamble.length = 3;
+									preamble.buffer[0] = 0xA0 | ((writeAddress>>15)&6);
+									preamble.buffer[1] = ((writeAddress>>8)&0xff)+page; //address
+									preamble.buffer[2] = writeAddress&0xff; //address
+									preamble.ctrlMask = 0x0000;
+									stat = CyU3PI2cTransmitBytes(&preamble, b512+page*256, 256, 0);
+									if (stat != CY_U3P_SUCCESS)
+										CyFxAppErrorHandler(stat);
+
+									preamble.length = 1;
+									stat |= CyU3PI2cWaitForAck(&preamble, 200);
+									if (stat != CY_U3P_SUCCESS)
+										CyFxAppErrorHandler(stat);
+
+									CyU3PDebugPrint (4, "WR:%d/%d/%d/%d/%d\n", writeAddress, towrite, stat, b512[page*256], rc );
+								}
+								wLength -= towrite;
+								writeAddress += towrite;
+							}
+							CyU3PUsbAckSetup();
+						}
+						break;
 					default: /* unknown request, stall the endpoint. */
+						CyU3PDebugPrint (4, "UVC/%d %d %d %d/\n", bReqType, bRequest, wLength, wValue );
 						CyU3PUsbStall(0, CyTrue, CyFalse);
 						break;
 					}
 				} else {
+					CyU3PDebugPrint (4, "UNV/%d %d %d %d/\n", bReqType, bRequest, wLength, wValue );
 					CyU3PUsbStall(0, CyTrue, CyFalse); /* Only vendor requests are expected. Stall anything else. */
 				}
 			}
@@ -1206,13 +1161,6 @@ void CyFxApplicationDefine(void) {
 	/* Create the event group required to defer vendor specific requests. */
 	CyU3PEventCreate(&glAppEvent);
 	/* Not expecting any failures here. So, not checking the return value. */
-
-	/* Allocate a buffer for handling control requests. */
-	glEp0Buffer = (uint8_t *) CyU3PDmaBufferAlloc(CYFX_ISOAPP_MAX_EP0LEN);
-	if (glEp0Buffer == 0) {
-		while (1)
-			;
-	}
 
 	/* Allocate the memory for the threads */
 	ptr = CyU3PMemAlloc(CY_FX_ISOSRC_THREAD_STACK);
@@ -1292,10 +1240,14 @@ int main(void) {
 	/* This is a non returnable call for initializing the RTOS kernel */
 	CyU3PKernelEntry();
 
+	CyU3PDebugPrint (4, "Device Init\r\n" );
+
 	/* Dummy return to make the compiler happy */
 	return 0;
 
 	handle_fatal_error:
+
+	CyU3PDebugPrint (4, "Fatal Start Error\r\n" );
 
 	/* Cannot recover from this error. */
 	while (1)

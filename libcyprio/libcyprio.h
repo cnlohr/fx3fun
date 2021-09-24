@@ -99,7 +99,7 @@ void CyprIODestroy( struct CyprIO * ths );
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
 
-//Set up a high performance asynchronous transfer in from an ISO endpoint.
+//Set up a high performance asynchronous transfer in from an ISO endpoint. NOTE: Callback should return 0.  Returning nonzero will abort DataXferTx.
 int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
 
 int CyprIOGetString( struct CyprIO * ths, WCHAR *str, uint8_t sIndex);
