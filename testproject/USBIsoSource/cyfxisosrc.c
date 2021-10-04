@@ -46,6 +46,7 @@
 #include <cyu3gpif.h>#include <cyu3pib.h>#include <pib_regs.h>
 #include <cyu3gpio.h>
 #include "cyu3pib.h"
+#include "version.h"
 
 #include "fast_gpif2.cydsn/cyfxgpif2config.h"
 //#include "fast_gpif2.h"
@@ -1045,6 +1046,21 @@ void IsoSrcAppThread_Entry(uint32_t input) {
 							replylen = 8;
 
 							break;
+						}
+						case 0x12:
+						{
+							static const char version_str[] = __DATE__ " " __TIME__;
+							typedef struct
+							{
+								char build_timestamp[22];
+								char git_hash[16];
+							} version_info_t;
+
+							version_info_t *p_version_info = ( version_info_t * )reply;
+							memset( p_version_info, 0, sizeof( version_info_t ) );
+							memcpy( p_version_info->build_timestamp, version_str, strlen( version_str ) );
+							memcpy( p_version_info->git_hash, GIT_COMMIT, strlen( GIT_COMMIT ) );
+							replylen = sizeof( version_info_t );
 						}
 						default:
 						{

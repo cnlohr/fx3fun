@@ -20,6 +20,8 @@ all:compile
 
 include $(FX3FWROOT)/fw_build/fx3_fw/fx3_build_config.mak
 
+$(shell echo -e "#define GIT_COMMIT \"$$(git describe --always --dirty --match 'NOT A TAG')\"" > version.h)
+
 MODULE = cyfxisosrc
 
 SOURCE= $(MODULE).c 	\
