@@ -47,7 +47,8 @@
  * supported is limited by the USB hosts available. The maximum value for this is 16
  * and the minimum (no-burst) is 1. */
 
-#define CY_FX_ISOSRC_DMA_BUF_COUNT      (3)     /* Number of buffers in the DMA channel. (Now applied to GPIF) */
+#define CY_FX_ISOSRC_DMA_BUF_COUNT      (1)     /* Number of buffers in the DMA channel. (Now applied to GPIF) */
+                                                /* NOTE: Count is per socket! */
 #define CY_FX_ISO_PKTS                  (2)     /* Number of bursts per microframe. */
 #define CY_FX_ISO_BURST                 (16)    /* Number of packets per burst. */
 #define MAX_PACKET_SIZE                 1024
