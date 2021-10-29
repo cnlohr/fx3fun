@@ -87,20 +87,26 @@ struct CyprIO
 #endif
 };
 
-
+struct CyprIOFwInfo
+{
+	char BuildTimestamp[22];
+	char GitHash[16];
+} ;
 
 //Setup
 int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid);
 int CyprIOGetDevDescriptorInformation( struct CyprIO * ths );
 int CyprIOSetup( struct CyprIO * ths, int use_config, int use_iface );
 void CyprIODestroy( struct CyprIO * ths );
+void CyprIOGetFwInformation( struct CyprIO * ths, struct CyprIOFwInfo * fw_info );
 
 //Sort of utiltiy that binds the above 2. Mimics libusb_control_transfer from libusb, to ease portability.  Only for IOCTL_ADAPT_SEND_EP0_CONTROL_TRANSFER.  Other messages must be done using the other mechanisms.  This however, can only make regular control message calls.
 int CyprIOControlTransfer( struct CyprIO * ths, uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char * data, uint16_t wLength, unsigned int timeout );
 
 
 //Set up a high performance asynchronous transfer in from an ISO endpoint. NOTE: Callback should return 0.  Returning nonzero will abort DataXferTx.
-int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id );
+typedef int ( *CyprIOXferCB_t )( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t );
+int CyprIODoCircularDataXferTx( struct CyprIOEndpoint *ep, int buffersize, int nrbuffers, CyprIOXferCB_t callback, void *id );
 
 int CyprIOGetString( struct CyprIO * ths, WCHAR *str, uint8_t sIndex);
 

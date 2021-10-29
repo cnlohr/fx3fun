@@ -98,7 +98,7 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 	if ( !malloc_success )
 	{
 		fprintf( stderr, "Error allocating xmit buffers\n" );
-		goto function_exit;
+		goto function_free_mallocs;
 	}
 	
 	for( i = 0; i < nrbuffers; i++ )
@@ -129,9 +129,6 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 
 	i = 0;
 	
-	//If we get several non-16k packets, add a delay to kick it back into 16k mode.
-	int non16kpktcount = 0;
-	
 	do
 	{
 		//int wResult = WaitForIO( ep, &ovLapStatus[i], 1000 );
@@ -158,32 +155,15 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		if( bytes )
 		{
 			PSINGLE_TRANSFER pst = ( ( PSINGLE_TRANSFER *)xmitbuffers )[ i ];
-			int pk;
-			uint8_t *ptrbase = buffers[ i ];
+			int pk = 0;
+			
 			for( pk = 0; pk < pkts; pk++ )
 			{
-				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;
-				
-				//Yurrffff - Bug in Windows - if we have 32768 byte packets we have to flip the sgroups.
-				//Sometimes.
-				//Other times that's wrong.
-				if( iso->Length )
-				{
-					if( iso->Length > 16384 )
-					{
-						if( non16kpktcount++ >= 10 )
-						{
-							Sleep( 50 );
-							non16kpktcount = 0;
-							DEBUGINFO( "Warning: received too many non16k packets. Attempting to herk stream\n" );
-							continue;
-						}
-					}
-					if( callback( id, ep, ptrbase, iso->Length ) )
-						break;
-				}
-				memset( ptrbase, 0, iso->Length );
-				ptrbase += ep->MaxPktSize;
+				PISO_PACKET_INFO iso = ((PISO_PACKET_INFO)( ((uint8_t*)pst) + pst->IsoPacketOffset )) + pk;				
+				uint8_t *p_data = buffers[i] + (pk * ep->MaxPktSize);
+				if( iso->Length && callback( id, ep, p_data, iso->Length ) )
+					break;
+				memset(p_data, 0, iso->Length );
 			}
 			if( pk != pkts ) break;
 		}
@@ -202,11 +182,29 @@ int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int 
 		if( i == nrbuffers ) i = 0;
 	} while( 1 );
 
-function_exit:
-	for( i = 0; i < nrbuffers; i++ )
+	// Ensure all overlapped transactions have finished
+	while (1)
 	{
-		CloseHandle( ovLapStatus[i].hEvent );
+		for ( i = 0; i < nrbuffers; i++ )
+		{
+			LPOVERLAPPED l = &ovLapStatus[ i ];
+			DWORD bytes = 0;
+			if ( l->hEvent && ep->parent->hDevice && !GetOverlappedResult( ep->parent->hDevice, l, &bytes, TRUE ) )
+			{
+				continue;
+			}
+		}
+
+		break;
 	}
+
+	// Close the overlapped handles
+	for ( i = 0; i < nrbuffers; i++ )
+	{
+		CloseHandle( ovLapStatus[ i ].hEvent );
+	}
+
+function_free_mallocs:
 
 	free( ovLapStatus );
 
@@ -224,15 +222,20 @@ function_exit:
 
 #else
 
-
+typedef struct
+{
+	struct CyprIOEndpoint *ep;
+	CyprIOXferCB_t callback;
+	void *cb_context;
+	BOOL running;
+	BOOL stop_tranfers;
+} transfer_info_t;
 
 static void cb_xfr(struct libusb_transfer *xfr)
 {
-	void ** dat = xfr->user_data;
+	transfer_info_t *p_transfer_info = (transfer_info_t *)xfr->user_data;
+	p_transfer_info->running = 1;
 
-	struct CyprIOEndpoint * ep = (struct CyprIOEndpoint *)dat[0];
-	int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ) = (int (*)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ))dat[1];
-	void * id = (void*)dat[2];
 	int i;
 
 	if (xfr->status != LIBUSB_TRANSFER_COMPLETED)
@@ -246,7 +249,8 @@ static void cb_xfr(struct libusb_transfer *xfr)
 		for (i = 0; i < xfr->num_iso_packets; i++) {
 			struct libusb_iso_packet_descriptor *pack = &xfr->iso_packet_desc[i];
 
-			if( pack->actual_length && callback( id, ep, xfr->buffer+pack->length*i, pack->actual_length ) )
+			if ( pack->actual_length && p_transfer_info->callback( p_transfer_info->cb_context, p_transfer_info->ep,
+											xfr->buffer + pack->length * i, pack->actual_length ) )
 				goto kill;
 
 			if (pack->status != LIBUSB_TRANSFER_COMPLETED) {
@@ -256,12 +260,16 @@ static void cb_xfr(struct libusb_transfer *xfr)
 		}
 	}
 
-//printf( "CBDOX %d %d %02x %d %d\n", xfr->buffer, xfr->num_iso_packets, xfr->buffer[0], tl, xfr->actual_length );
-
-
-	if( !ep->parent->shutdown )
+	if ( p_transfer_info->stop_tranfers )
 	{
-		if (libusb_submit_transfer(xfr) < 0) {
+		goto kill;
+	}
+
+//printf( "CBDOX %d %d %02x %d %d\n", xfr->buffer, xfr->num_iso_packets, xfr->buffer[0], tl, xfr->actual_length );
+	if ( !p_transfer_info->ep->parent->shutdown )
+	{
+		if ( libusb_submit_transfer( xfr ) < 0 )
+		{
 			fprintf(stderr, "error re-submitting URB\n");
 			goto kill;
 		}
@@ -269,68 +277,97 @@ static void cb_xfr(struct libusb_transfer *xfr)
 	return;
 
 kill:
-	dat[3] = (void*)1;
-	libusb_close( ep->parent->hDevice );
+	p_transfer_info->running = 0;
 	return;
 }
 
 //XXX WARNING: Currently only written for ISO IN packets!!!
-int CyprIODoCircularDataXferTx( struct CyprIOEndpoint * ep, int buffersize, int nrbuffers,  int (*callback)( void *, struct CyprIOEndpoint *, uint8_t *, uint32_t ), void * id )
+int CyprIODoCircularDataXferTx(struct CyprIOEndpoint *ep, int buffersize, int nrbuffers, CyprIOXferCB_t callback, void *id )
 {
-	//I don't know what's up with this, things get janky 
+// I don't know what's up with this, things get janky
 	#define NR_XFER_BUFFER 32
-	static struct libusb_transfer *xfr[NR_XFER_BUFFER];
+	static struct libusb_transfer *xfr[ NR_XFER_BUFFER ];
+	transfer_info_t transfer_info[ NR_XFER_BUFFER ];
 
-	void * transferinfo[4];
-	transferinfo[0] = ep;
-	transferinfo[1] = callback;
-	transferinfo[2] = id;
-	transferinfo[3] = 0;
+	memset( xfr, 0, sizeof( xfr ) );
 
-	uint8_t * rbuf = malloc(buffersize*nrbuffers*NR_XFER_BUFFER); //XXX TODO: is buf required for in transfers??
+	uint8_t *rbuf = malloc( buffersize * nrbuffers * NR_XFER_BUFFER );
+	if ( !rbuf )
+	{
+		return -2;
+	}
+		
 	int epno = ep->Address;
 	printf( "EPNO %02x /Size %d/ Buffers %d\n", epno, buffersize, nrbuffers );
 
 	int i;
-	for( i = 0; i < NR_XFER_BUFFER; i++ )
+	for ( i = 0; i < NR_XFER_BUFFER; i++ )
 	{
-		uint8_t  * tbuf = &rbuf[i*buffersize*nrbuffers];
-		xfr[i] = libusb_alloc_transfer( nrbuffers );
-		if (!xfr[i])
+		transfer_info[ i ].ep = ep;
+		transfer_info[ i ].callback = callback;
+		transfer_info[ i ].cb_context = id;
+		transfer_info[ i ].running = 0;
+		transfer_info[ i ].stop_tranfers = 0;
+
+		uint8_t *tbuf = &rbuf[ i * buffersize * nrbuffers ];
+		xfr[ i ] = libusb_alloc_transfer( nrbuffers );
+		if ( !xfr[ i ] )
 		{
-			free( rbuf );
-			return -6;
-		}
-
-		libusb_fill_iso_transfer(xfr[i], ep->parent->hDevice, epno, tbuf, (buffersize*nrbuffers), nrbuffers, cb_xfr, transferinfo, 5000);
-		libusb_set_iso_packet_lengths(xfr[i],buffersize);
-
-		int ret = libusb_submit_transfer(xfr[i]);
-		if( ret < 0 )
-		{
-			fprintf( stderr, "Error with submit of transfer: %d (%s)\n", ret, libusb_error_name(ret) );
-			free( rbuf );
-			return ret;
-		}
-	}
-
-	while (!transferinfo[3]) {
-		int rc = libusb_handle_events(NULL);
-		if (rc != LIBUSB_SUCCESS)
 			break;
+		}
+
+		libusb_fill_iso_transfer( xfr[ i ], ep->parent->hDevice, epno, tbuf, ( buffersize * nrbuffers ), nrbuffers, cb_xfr, &transfer_info[ i ], 5000 );
+		libusb_set_iso_packet_lengths( xfr[ i ], buffersize );
+
+		int ret = libusb_submit_transfer( xfr[ i ] );
+		if ( ret < 0 )
+		{
+			fprintf( stderr, "Error with submit of transfer: %d (%s)\n", ret, libusb_error_name( ret ) );
+			break;
+		}
+		transfer_info[ i ].running = 1;
 	}
-	for( i = 0; i < NR_XFER_BUFFER; i++ )
-		libusb_free_transfer( xfr[i] );
+
+	
+	BOOL any_transfer_running = ( i > 0 );
+	BOOL all_transfers_running = ( i == NR_XFER_BUFFER );
+	
+	// While any transfer is in progress...
+	while ( any_transfer_running )
+	{
+		// TODO: Sleep?
+		// TODO: What to do with libusb_handle_events() return status?
+		libusb_handle_events( NULL );
+		any_transfer_running = 0;
+		for ( i = 0; i < NR_XFER_BUFFER; i++ )
+		{
+			any_transfer_running |= transfer_info[ i ].running;
+			all_transfers_running &= transfer_info[ i ].running;
+
+			// Stop all transfers if any single transfer isn't running
+			if ( !all_transfers_running && !transfer_info[ i ].stop_tranfers )
+			{
+				libusb_cancel_transfer( xfr[ i ] );
+				transfer_info[ i ].stop_tranfers = 1;
+			}
+		}
+	};
+
+	printf( "All Xfers stopped, exiting xfer loop function\n" );
+
+	for ( i = 0; i < NR_XFER_BUFFER; i++ )
+	{
+		if ( xfr[ i ] )
+		{
+			libusb_free_transfer( xfr[ i ] );
+		}
+	}
 
 	free( rbuf );
 	return -1;
 }
 
 #endif
-
-
-
-
 
 
 #if defined( WINDOWS ) || defined( WIN32 )
@@ -490,7 +527,7 @@ int CyprIOConnect( struct CyprIO * ths, int index, int vid, int pid )
 	static int inited;
 	int rc;
 
-	memset( ths, sizeof( *ths ), 0 );
+	memset( ths, 0, sizeof( *ths ) );
 
 	rc = libusb_init(NULL);
 	if (rc < 0) {
@@ -684,6 +721,11 @@ static int CyprIOGetCfgDescriptor( struct CyprIO * ths, int descIndex )
 	memcpy(ths->USBConfigDescriptors[descIndex], buffer, ret);
 	return 0;
 	
+}
+
+void CyprIOGetFwInformation( struct CyprIO * ths, struct CyprIOFwInfo * fw_info )
+{
+  CyprIOControlTransfer( ths, 0xC0, 0xDD, 0x12, 0, (unsigned char *)fw_info, sizeof( *fw_info ), 5000 );
 }
 
 
